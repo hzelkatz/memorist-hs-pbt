@@ -1,8 +1,8 @@
-module Memorist.Components.Annotation where
+module Memorist.Core.Annotation where
 
 import Data.List as L (foldr)
 import Data.Set as S (Set, empty, union, insert, fromList, foldr, filter)
-import Memorist.Components.Thunk
+import Memorist.Core.Thunk
 
 type USet = Set ThName
 -- TODO: cost :: Int? or Integer? or Numeric.Natural? Probably don't need natural?

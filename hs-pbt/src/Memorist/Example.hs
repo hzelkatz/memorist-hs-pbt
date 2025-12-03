@@ -1,8 +1,8 @@
 module Memorist.Example where
 
-import Memorist.Components.Annotation
-import Memorist.Components.Thunk
-import Memorist.Core
+import Memorist.Core.Annotation
+import Memorist.Core.Thunk
+import Memorist.Core.Semantics
 import Memorist.DataT.Data
 import Memorist.DataT.List
 import qualified Test.QuickCheck as QC

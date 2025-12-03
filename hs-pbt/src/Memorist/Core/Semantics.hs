@@ -1,8 +1,8 @@
-module Memorist.Core where
+module Memorist.Core.Semantics where
 
 import Data.Set as S (union)
-import Memorist.Components.Thunk as T
-import Memorist.Components.Annotation as A
+import Memorist.Core.Thunk as T
+import Memorist.Core.Annotation as A
 
 
 data Result a = Result { value :: a, annot :: Annot, cntx :: AnnotCntx }

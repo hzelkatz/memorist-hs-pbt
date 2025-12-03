@@ -2,9 +2,9 @@
 
 module Memorist.DataT.List where
 
-import Memorist.Core
-import Memorist.Components.Annotation
-import Memorist.Components.Thunk
+import Memorist.Core.Annotation
+import Memorist.Core.Thunk
+import Memorist.Core.Semantics
 import Memorist.DataT.Data
 import Data.Set as S
 

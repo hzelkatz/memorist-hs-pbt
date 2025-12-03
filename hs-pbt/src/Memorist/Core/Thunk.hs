@@ -1,4 +1,4 @@
-module Memorist.Components.Thunk where
+module Memorist.Core.Thunk where
 
 -- | Named thunk
 -- Int? Alternative is Numeric.Natural?

@@ -19,12 +19,12 @@ common warnings
 library
     import:           warnings
     exposed-modules:
-        Memorist.Core
-        Memorist.Example
-        Memorist.Components.Annotation
-        Memorist.Components.Thunk
+        Memorist.Core.Annotation
+        Memorist.Core.Thunk
+        Memorist.Core.Semantics
         Memorist.DataT.Data
         Memorist.DataT.List
+        Memorist.Example
         -- Memorist.Testing
     -- other-modules:
     -- other-extensions:

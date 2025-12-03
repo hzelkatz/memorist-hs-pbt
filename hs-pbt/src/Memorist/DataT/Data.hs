@@ -3,8 +3,8 @@
 
 module Memorist.DataT.Data where
 
-import Memorist.Components.Thunk
-import Memorist.Core
+import Memorist.Core.Thunk
+import Memorist.Core.Semantics
 
 
 class Rep a b where
