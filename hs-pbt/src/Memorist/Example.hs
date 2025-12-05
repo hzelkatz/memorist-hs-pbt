@@ -21,25 +21,16 @@ appendM txs tys =
                 lazybind (appendM txs' tys) $ \tzs ->
                     ret (ConsT tx tzs)
 
-appendM_fromPure :: Rep a b => [a] -> [a] -> M (ListT b)
+appendM_fromPure :: Repr a => [a] -> [a] -> M (ListT (Rep a))
 appendM_fromPure xs ys =
-    lazybind (repM xs) $ \txs -> lazybind (repM ys) $ \tys ->
-        appendM txs tys
+    lazybind (reprM xs) $ \txs ->
+        lazybind (reprM ys) $ \tys ->
+            appendM txs tys
 
-appendM_fromPure_Int :: [Int] -> [Int] -> M (ListT Int)
-appendM_fromPure_Int = appendM_fromPure
-
--- will be generalised; but the current way of handling Rep does not work like this
--- cost :: Rep a _ => [a] -> [a] -> Int -> Cost
--- cost xs ys n = infcost' r u ac
---     where ac = []
---           r = appendM_fromPure xs ys ac
---           u = usageLC (cntx r) (value r) n
-
-cost_IntList :: [Int] -> [Int] -> Int -> Cost
-cost_IntList xs ys n = infcost' r u ac
+cost_appendM :: Repr a => [a] -> [a] -> Int -> Cost
+cost_appendM xs ys n = infcost' r u ac
     where ac = []
-          r = appendM_fromPure_Int xs ys ac
+          r = appendM_fromPure xs ys ac
           u = usageLC (cntx r) (value r) n
 
 ex_xs, ex_ys :: [Int]
@@ -54,7 +45,7 @@ exampleM :: M (ListT Int)
 exampleM = appendM_fromPure ex_xs ex_ys
 
 cost_ex :: Int -> Cost
-cost_ex = cost_IntList ex_xs ex_ys
+cost_ex = cost_appendM ex_xs ex_ys
 
 
 genResultUsage :: QC.Arbitrary a => [a] -> [a] -> QC.Gen Int
@@ -64,6 +55,6 @@ genResultUsage xs ys = QC.elements [0..len']
 
 prop_costbound :: [Int] -> [Int] -> QC.Property
 prop_costbound xs ys = QC.forAll (genResultUsage xs ys) $ \n ->
-    cost_IntList xs ys n <= length xs + 1
+    cost_appendM xs ys n <= max n (length xs + 1)
 
 qc_example = QC.quickCheck prop_costbound

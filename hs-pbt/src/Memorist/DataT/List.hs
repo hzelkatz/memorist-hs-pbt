@@ -1,4 +1,4 @@
-{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE TypeFamilies #-}
 
 module Memorist.DataT.List where
 
@@ -13,19 +13,20 @@ data ListT a = NilT | ConsT (Th a) (Th (ListT a))
     deriving (Eq, Show)
 
 
-repM_ListT :: Rep a b => [a] -> M (ListT b)
-repM_ListT []     = ret NilT
-repM_ListT (x:xs) =
-    lazybind (repM x) $ \tx ->
-    lazybind (repM xs) $ \txs -> ret (ConsT tx txs)
+reprM_ListT :: Repr a => [a] -> M (ListT (Rep a))
+reprM_ListT []     = ret NilT
+reprM_ListT (x:xs) =
+    lazybind (reprM x) $ \tx ->
+    lazybind (reprM xs) $ \txs -> ret (ConsT tx txs)
 
-abst_ListT :: Rep a b => ListT b -> [a]
-abst_ListT NilT = []
-abst_ListT (ConsT (Th _ x) (Th _ xs)) = abst x : abst_ListT xs
+abstract_ListT :: Repr a => ListT (Rep a) -> [a]
+abstract_ListT NilT = []
+abstract_ListT (ConsT (Th _ x) (Th _ xs)) = abstract x : abstract_ListT xs
 
-instance Rep a b => Rep [a] (ListT b) where
-    repM = repM_ListT
-    abst = abst_ListT
+instance Repr a => Repr [a] where
+    type Rep [a] = ListT (Rep a)
+    reprM = reprM_ListT
+    abstract = abstract_ListT
 
 
 usageLC :: AnnotCntx -> ListT a -> Int -> USet
