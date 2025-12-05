@@ -53,8 +53,11 @@ genResultUsage xs ys = QC.elements [0..len']
     where len = length xs + length ys - 1
           len' = max 0 len
 
-prop_costbound :: [Int] -> [Int] -> QC.Property
+prop_costbound :: (Repr a, QC.Arbitrary a) => [a] -> [a] -> QC.Property
 prop_costbound xs ys = QC.forAll (genResultUsage xs ys) $ \n ->
     cost_appendM xs ys n <= max n (length xs + 1)
 
-qc_example = QC.quickCheck prop_costbound
+-- To actually QuickCheck this property we need to provide a concrete type.
+-- This is due to QuickCheck itself, not an issue of the translation.
+qc_example :: IO ()
+qc_example = QC.quickCheck (prop_costbound :: [Int] -> [Int] -> QC.Property)
