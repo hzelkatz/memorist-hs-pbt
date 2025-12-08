@@ -5,7 +5,7 @@ import Data.Set as S (Set, empty, union, insert, fromList, foldr, filter)
 import Memorist.Core.Thunk
 
 type USet = Set ThName
--- TODO: cost :: Int? or Integer? or Numeric.Natural? Probably don't need natural?
+-- TODO: cost :: Int? or Integer?
 type Cost = Int
 type Annot = (Cost, USet)
 

@@ -1,4 +1,4 @@
-module Memorist.Example where
+module Memorist.Example.Append where
 
 import Memorist.Core.Annotation
 import Memorist.Core.Thunk

@@ -24,14 +24,14 @@ ret x = \ac -> Result {value = x, annot = zero, cntx = ac}
 
 bind :: M a -> (a -> M b) -> M b
 bind m k = \ac ->
-    let Result {value = x, annot = a, cntx = ac'} = m ac in
-        let Result {value = y, annot = a', cntx = ac''} = (k x) ac' in 
-            Result {value = y, annot = a `add` a', cntx = ac''}
+    let Result {value = x, annot = a, cntx = ac'} = m ac
+        Result {value = y, annot = a', cntx = ac''} = (k x) ac'
+    in Result {value = y, annot = a `add` a', cntx = ac''}
 
 lazy :: M a -> M (Th a)
 lazy m = \ac ->
-    let Result {value = x, annot = a, cntx = ac'} = m ac in
-        Result {value = Th (nextIdx ac') x, annot = A.zero, cntx = ext ac' a}
+    let Result {value = x, annot = a, cntx = ac'} = m ac
+    in Result {value = Th (nextIdx ac') x, annot = A.zero, cntx = ext ac' a}
 
 lazybind :: M a -> (Th a -> M b) -> M b
 lazybind m = bind (lazy m)
@@ -60,15 +60,4 @@ infcost' r u ac =
 
 infcost :: M a -> USet -> AnnotCntx -> Cost
 infcost m u ac = infcost' (m ac) u ac
-
-
--- newtype M a = M (AnnotCntx -> Result a)
-
-
--- -- ret 
--- instance Monad M where
---     return x = 
-
---     m >>= k =
-
 
