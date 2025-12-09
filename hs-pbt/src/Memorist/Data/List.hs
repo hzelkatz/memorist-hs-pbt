@@ -1,17 +1,16 @@
 {-# LANGUAGE TypeFamilies #-}
 
-module Memorist.DataT.List where
+module Memorist.Data.List where
 
 import Memorist.Core.Annotation
 import Memorist.Core.Thunk
 import Memorist.Core.Semantics
-import Memorist.DataT.Data
+import Memorist.Data.Interface
 import Data.Set as S
 
 
 data ListT a = NilT | ConsT (Th a) (Th (ListT a))
     deriving (Eq, Show)
-
 
 reprM_ListT :: Repr a => [a] -> M (ListT (Rep a))
 reprM_ListT []     = ret NilT
@@ -34,4 +33,3 @@ usageLC _ NilT _ = S.empty
 usageLC ac (ConsT _ (Th i xs')) n
     | n <= 0    = S.empty
     | otherwise = mapSu ac i `union` usageLC ac xs' (n - 1)
-

@@ -19,15 +19,21 @@ common warnings
 library
     import:           warnings
     exposed-modules:
+        Memorist.Core.Thunk
+        Memorist.Core.Annotation
+        Memorist.Core.Semantics
+        Memorist.Data.Interface
+        Memorist.Data.List
+        Memorist.Testing
         Memorist.Example.Append
         -- Memorist.Testing
     -- other-modules:
     -- other-extensions:
     build-depends: 
         -- base ^>=4.17.2.1 ,
-        base >=4.7 && < 5 ,
+        base >=4.14 && <5 ,
         containers ,
-        QuickCheck >=2.15
+        QuickCheck >2.15
     hs-source-dirs:
         src
     default-language: Haskell2010

@@ -1,11 +1,12 @@
 module Memorist.Core.Semantics where
 
-import Data.Set as S (union)
+-- import Data.Set as S (union)
+import Control.Monad
 import Memorist.Core.Thunk as T
 import Memorist.Core.Annotation as A
 
 
-data Result a = Result { value :: a, annot :: Annot, cntx :: AnnotCntx }
+data Result a = Result { value :: a, annot :: Annot }
     deriving (Eq, Show)
 
 costAnnot :: Result a -> Cost
@@ -15,49 +16,61 @@ usageAnnot :: Result a -> USet
 usageAnnot = snd . annot
 
 
--- TODO: monad class
-
-type M a = AnnotCntx -> Result a
+newtype M a = M (AnnotCntx -> (Result a, AnnotCntx))
 
 ret :: a -> M a
-ret x = \ac -> Result {value = x, annot = zero, cntx = ac}
+ret x = M $ \ac -> (Result {value = x, annot = zero}, ac)
 
 bind :: M a -> (a -> M b) -> M b
-bind m k = \ac ->
-    let Result {value = x, annot = a, cntx = ac'} = m ac
-        Result {value = y, annot = a', cntx = ac''} = (k x) ac'
-    in Result {value = y, annot = a `add` a', cntx = ac''}
+bind (M f) k = M $ \ac ->
+    let (Result {value = x, annot = a}, ac') = f ac
+        M f' = k x
+        (r, ac'') = f' ac'
+    in (r {annot = a `add` annot r}, ac'')
+
+instance Functor M where
+  fmap = liftM
+
+instance Applicative M where
+  pure = ret
+  (<*>) = ap
+
+instance Monad M where
+  return = pure
+  (>>=) = bind
+
+
+-- More combinators
 
 lazy :: M a -> M (Th a)
-lazy m = \ac ->
-    let Result {value = x, annot = a, cntx = ac'} = m ac
-    in Result {value = Th (nextIdx ac') x, annot = A.zero, cntx = ext ac' a}
+lazy (M f) = M $ \ac ->
+    let (Result {value = x, annot = a}, ac') = f ac
+    in (Result {value = Th (nextIdx ac') x, annot = A.zero}, ext ac' a)
 
 lazybind :: M a -> (Th a -> M b) -> M b
-lazybind m = bind (lazy m)
+lazybind m = (lazy m >>=)
 
 collect :: ThName -> M ()
-collect i = \ac -> Result {value = (), annot = fromSet (mapSu ac i), cntx = ac}
+collect i = M $ \ac -> (Result {value = (), annot = fromSet (mapSu ac i)}, ac)
 
 forcing :: Th a -> (a -> M b) -> M b
-forcing t f = bind (collect (tname t)) (\_ -> f (tval t))
+forcing t f = do
+    collect $ tname t
+    f $ tval t
 
 force :: Th a -> M a
 force t = forcing t ret
 
 tick :: M ()
-tick = \ac -> Result {value = (), annot = fromCost 1, cntx = ac}
+tick = M $ \ac -> (Result {value = (), annot = fromCost 1}, ac)
 
 
+-- Running the computation
+run :: M a -> AnnotCntx -> (Result a, AnnotCntx)
+run (M f) = f
 
--- u: usage from value
--- This will be generalised
-infcost' :: Result a -> USet -> AnnotCntx -> Cost
-infcost' r u ac =
-    sumcost (cntx r) s' + costAnnot r
-    where s  = u `union` usageAnnot r
-          s' = s `freshFrom` ac
+eval :: M a -> AnnotCntx -> Result a
+eval m = fst <$> run m
 
-infcost :: M a -> USet -> AnnotCntx -> Cost
-infcost m u ac = infcost' (m ac) u ac
-
+evalValue :: M a -> AnnotCntx -> a
+evalValue m = value <$> eval m
