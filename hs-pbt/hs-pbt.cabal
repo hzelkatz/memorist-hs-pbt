@@ -24,9 +24,10 @@ library
         Memorist.Core.Semantics
         Memorist.Data.Interface
         Memorist.Data.List
+        Memorist.Demand.Interface
+        Memorist.Demand.List
         Memorist.Testing
         Memorist.Example.Append
-        -- Memorist.Testing
     -- other-modules:
     -- other-extensions:
     build-depends: 

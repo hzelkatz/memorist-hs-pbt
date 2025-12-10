@@ -4,8 +4,9 @@ module Memorist.Testing where
 import Memorist.Core.Annotation as A
 import Memorist.Core.Semantics
 import Memorist.Data.Interface
+import Memorist.Demand.Interface
 import Data.Set as S (union)
-import qualified Test.QuickCheck as QC
+-- import qualified Test.QuickCheck as QC
 
 
 infcost' :: (Result a, AnnotCntx) -> USet -> AnnotCntx -> Cost
@@ -28,3 +29,29 @@ infcost :: M a -> ExtractFunc a -> Int -> AnnotCntx -> Cost
 infcost m f dsize acIni = infcost' final u acIni
     where final@(r, acFin) = run m acIni
           u = f acFin (value r) dsize
+
+-- TODO: if we generalize the "measure of size of the demand on the value",
+-- the above type fits both ways of extracting function
+-- (the straighrforward way and the way using an approx type to represent demand)?
+
+
+{-
+infcostD' :: Demand a b => (Result a, AnnotCntx) -> b -> AnnotCntx -> Cost
+infcostD' final@(r, acFin) d = infcost' final u
+    where u = usage acFin (value r) d
+
+infcostD :: Demand a b => M a -> b -> AnnotCntx -> Cost
+infcostD m d acIni = infcostD' (run m acIni) d acIni
+
+infcostD0 :: Demand a b => M a -> b -> Cost
+infcostD0 m d = infcostD m d A.empty
+-}
+infcostD' :: Demand a => (Result a, AnnotCntx) -> Dem a -> AnnotCntx -> Cost
+infcostD' final@(r, acFin) d = infcost' final u
+    where u = usage acFin (value r) d
+
+infcostD :: Demand a => M a -> Dem a -> AnnotCntx -> Cost
+infcostD m d acIni = infcostD' (run m acIni) d acIni
+
+infcostD0 :: Demand a => M a -> Dem a -> Cost
+infcostD0 m d = infcostD m d A.empty

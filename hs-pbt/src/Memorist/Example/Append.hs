@@ -6,7 +6,9 @@ import Memorist.Core.Annotation as A
 import Memorist.Core.Thunk
 import Memorist.Core.Semantics
 import Memorist.Data.Interface
+import Memorist.Demand.Interface
 import Memorist.Data.List
+import Memorist.Demand.List
 import Memorist.Testing
 import qualified Test.QuickCheck as QC
 
@@ -64,3 +66,25 @@ prop_costbound xs ys = QC.forAll (genResultUsage xs ys) $ \n ->
 -- This is due to QuickCheck itself, not an issue of the translation.
 qc_example :: IO ()
 qc_example = QC.quickCheck (prop_costbound :: [Int] -> [Int] -> QC.Property)
+
+
+
+-- cost_appendM_d :: (Repr a, ReprDemand a b) => [a] -> [a] -> ListD b -> Cost
+-- cost_appendM_d xs ys d = infcostD (appendM_fromPure xs ys) d ac
+--     where ac = A.empty
+
+-- costArbDemand_appendM :: (Repr a, ReprDemand a b, ArbDemand (Rep a) b) => [a] -> [a] -> Cost
+-- costArbDemand_appendM xs ys = infcostD' final d ac
+--     where ac = A.empty
+--           final@(r, _) = appendM_fromPure xs ys ac
+--           d = arbitraryDemandFrom (value r)
+
+-- TODO: simplify typeclasses constraints
+-- FIXME: this runs the computation twice?
+prop_costbound_d :: (Repr a, QC.Arbitrary a, ArbDemand (Rep a)) => [a] -> [a] -> QC.Property
+prop_costbound_d xs ys = QC.forAll (arbitraryDemandM m) $ \d ->
+    infcostD0 m d <= max (sizeD 1 d) (length xs + 1)
+    where m = appendM_fromPure xs ys
+
+qc_example_d :: IO ()
+qc_example_d = QC.quickCheck (prop_costbound_d :: [Int] -> [Int] -> QC.Property)
