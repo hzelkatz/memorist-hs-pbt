@@ -60,7 +60,7 @@ genResultUsage xs ys = QC.elements [0..len']
 
 prop_costbound :: (Repr a, QC.Arbitrary a) => [a] -> [a] -> QC.Property
 prop_costbound xs ys = QC.forAll (genResultUsage xs ys) $ \n ->
-    cost_appendM xs ys n <= max n (length xs + 1)
+    cost_appendM xs ys n <= min n (length xs) + 1
 
 -- To actually QuickCheck this property we need to provide a concrete type.
 -- This is due to QuickCheck itself, not an issue of the translation.
@@ -81,9 +81,7 @@ qc_example = QC.quickCheck (prop_costbound :: [Int] -> [Int] -> QC.Property)
 
 -- TODO: simplify typeclasses constraints
 -- FIXME: this runs the computation twice?
-prop_costbound_d :: (Repr a, QC.Arbitrary a, ArbDemand (Rep a)) => [a] -> [a] -> QC.Property
-prop_costbound_d xs ys = QC.forAll (arbitraryDemandM m) $ \d ->
-    infcostD0 m d <= max (sizeD 1 d) (length xs + 1)
+    infcostD0 m d <= min (sizeD 1 d) (length xs + 1)
     where m = appendM_fromPure xs ys
 
 qc_example_d :: IO ()
