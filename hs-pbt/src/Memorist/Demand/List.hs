@@ -65,20 +65,22 @@ instance Arbitrary a => Arbitrary (ListD a) where
 
 
 {-
-instance ArbDemand a b => ArbDemand (ListT a) (ListD b) where
-    arbitraryDemandFrom NilT = return NilD
-    arbitraryDemandFrom (ConsT tx txs) = do
-        dx <- arbitraryDemandFrom tx
-        dxs <- arbitraryDemandFrom txs
+instance DemandArb a b => DemandArb (ListT a) (ListD b) where
+    arbDemandFrom NilT = return NilD
+    arbDemandFrom (ConsT tx txs) = do
+        dx <- arbDemandFrom tx
+        dxs <- arbDemandFrom txs
         return $ ConsD dx dxs
 -}
-instance ArbDemand a => ArbDemand (ListT a) where
-    arbitraryDemandFrom NilT = return NilD
-    arbitraryDemandFrom (ConsT tx txs) = do
-        dx <- arbitraryDemandFrom tx
-        dxs <- arbitraryDemandFrom txs
+instance DemandArb a => DemandArb (ListT a) where
+    arbDemandFrom NilT = return NilD
+    arbDemandFrom (ConsT tx txs) = do
+        dx <- arbDemandFrom tx
+        dxs <- arbDemandFrom txs
         return $ ConsD dx dxs
 
-test1 = arbitraryDemandFrom $ evalValue (reprM ([1..5] :: [Int])) [] :: Gen (ListD Int)
-test2 = arbitraryDemandFromRepr $ ([1..5] :: [Int]) :: Gen (ListD Int)
+instance ReprDemandArb a => ReprDemandArb [a]
+
+test1 = arbDemandFrom $ evalValue (reprM ([1..5] :: [Int])) [] :: Gen (ListD Int)
+test2 = arbDemandFromRepr $ ([1..5] :: [Int]) :: Gen (ListD Int)
 

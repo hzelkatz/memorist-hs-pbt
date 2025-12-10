@@ -42,6 +42,7 @@ instance ReprDemand Int Int
 -- instance ReprDemand a b => ReprDemand a (ThD b)
 -}
 
+-- Defined over Memorist transformed type (the one with named thunks)
 class Demand a where
     type Dem a
     -- final context
@@ -64,16 +65,19 @@ instance Demand Int where
     type Dem Int = Int
 
 
+{-
+-- Not needed atm
+
 class (Repr a, Demand (Rep a)) => ReprDemand a where
     -- initial context
     usageR :: AnnotCntx -> a -> (Dem (Rep a)) -> USet
     usageR ac x = usage ac' (value r)
         where (r, ac') = run (reprM x) ac
 
--- instance ReprDemand ()
--- instance ReprDemand Bool
--- instance ReprDemand Int
-
+instance ReprDemand ()
+instance ReprDemand Bool
+instance ReprDemand Int
+-}
 
 
 -- With this approach, we need to also define generators for demand types.
@@ -100,26 +104,26 @@ arbitraryWrap x = do
 -- It will be useful to generate random demand on a given value
 
 {-
-class Demand a b => ArbDemand a b where
-    arbitraryDemandFrom :: a -> Gen b
+class Demand a b => DemandArb a b where
+    arbDemandFrom :: a -> Gen b
 
-instance ArbDemand () () where
-    arbitraryDemandFrom = return
+instance DemandArb () () where
+    arbDemandFrom = return
 
-instance ArbDemand Bool Bool where
-    arbitraryDemandFrom = return
+instance DemandArb Bool Bool where
+    arbDemandFrom = return
 
-instance ArbDemand Int Int where
-    arbitraryDemandFrom = return
+instance DemandArb Int Int where
+    arbDemandFrom = return
 
-instance ArbDemand a b => ArbDemand (Th a) (ThD b) where
-    arbitraryDemandFrom (Th _ x) = do
-        x' <- arbitraryDemandFrom x
+instance DemandArb a b => DemandArb (Th a) (ThD b) where
+    arbDemandFrom (Th _ x) = do
+        x' <- arbDemandFrom x
         arbitraryWrap x'
 
--- class (ReprDemand a b, ArbDemand (Rep a) b) => ArbReprDemand a b where
-    -- arbitraryDemandFromRepr :: a -> Gen b
-    -- arbitraryDemandFromRepr x = arbitraryDemandFrom $ evalValue (reprM x) A.empty
+-- class (ReprDemand a b, DemandArb (Rep a) b) => ArbReprDemand a b where
+    -- arbDemandFromRepr :: a -> Gen b
+    -- arbDemandFromRepr x = arbDemandFrom $ evalValue (reprM x) A.empty
 
 -- instance ArbReprDemand () ()
 -- instance ArbReprDemand Bool Bool
@@ -129,36 +133,44 @@ instance ArbDemand a b => ArbDemand (Th a) (ThD b) where
 -- on the assumption that the demand type abstract away names, so that
 -- exact contexts do not matter.
 
-arbitraryDemandFromRepr :: (ReprDemand a b, ArbDemand (Rep a) b) => a -> Gen b
-arbitraryDemandFromRepr x = arbitraryDemandFrom $ evalValue (reprM x) A.empty
+arbDemandFromRepr :: (ReprDemand a b, DemandArb (Rep a) b) => a -> Gen b
+arbDemandFromRepr x = arbDemandFrom $ evalValue (reprM x) A.empty
 
-arbitraryDemandM :: ArbDemand a b => M a -> Gen b
-arbitraryDemandM m = arbitraryDemandFrom $ evalValue m A.empty
+arbDemandM :: DemandArb a b => M a -> Gen b
+arbDemandM m = arbDemandFrom $ evalValue m A.empty
 -}
 
--- Requires Show typeclass since types of this class can directly interact with QC
-class (Demand a, Show (Dem a)) => ArbDemand a where
-    arbitraryDemandFrom :: a -> Gen (Dem a)
+-- Demand type with QC generators defined.
+-- Defined over Memorist transformed type (the one with named thunks).
+-- Requires Show typeclass since types of this class can directly interact with QC.
+class (Demand a, Show (Dem a)) => DemandArb a where
+    arbDemandFrom :: a -> Gen (Dem a)
 
-instance ArbDemand () where
-    arbitraryDemandFrom = return
+instance DemandArb () where
+    arbDemandFrom = return
 
-instance ArbDemand Bool where
-    arbitraryDemandFrom = return
+instance DemandArb Bool where
+    arbDemandFrom = return
 
-instance ArbDemand Int where
-    arbitraryDemandFrom = return
+instance DemandArb Int where
+    arbDemandFrom = return
 
-instance ArbDemand a => ArbDemand (Th a) where
-    arbitraryDemandFrom (Th _ x) = do
-        x' <- arbitraryDemandFrom x
+instance DemandArb a => DemandArb (Th a) where
+    arbDemandFrom (Th _ x) = do
+        x' <- arbDemandFrom x
         arbitraryWrap x'
 
+arbDemandM :: (DemandArb a) => M a -> Gen (Dem a)
+arbDemandM m = arbDemandFrom $ evalValue m A.empty
 
-arbitraryDemandFromRepr :: (Repr a, ArbDemand (Rep a)) => a -> Gen (Dem (Rep a))
-arbitraryDemandFromRepr x = arbitraryDemandFrom $ evalValue (reprM x) A.empty
+-- Ordinary Haskell type with Memorist representation, the latter of which
+-- also has an associated demand type that has QC generators defined.
+class (Repr a, DemandArb (Rep a)) => ReprDemandArb a
 
-arbitraryDemandM :: (ArbDemand a) => M a -> Gen (Dem a)
-arbitraryDemandM m = arbitraryDemandFrom $ evalValue m A.empty
+instance ReprDemandArb ()
+instance ReprDemandArb Bool
+instance ReprDemandArb Int
 
+arbDemandFromRepr :: ReprDemandArb a => a -> Gen (Dem (Rep a))
+arbDemandFromRepr x = arbDemandFrom $ evalValue (reprM x) A.empty
 

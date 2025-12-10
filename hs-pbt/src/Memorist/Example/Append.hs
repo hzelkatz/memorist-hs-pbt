@@ -68,21 +68,35 @@ qc_example :: IO ()
 qc_example = QC.quickCheck (prop_costbound :: [Int] -> [Int] -> QC.Property)
 
 
+-- Despite more work to do to implement the typeclass instances,
+-- using demand type has the benefit of not needing to figure out what are
+-- valid demands for each function to be tested
+-- (i.e. no need of functions like the `genResultUsage` above).
 
--- cost_appendM_d :: (Repr a, ReprDemand a b) => [a] -> [a] -> ListD b -> Cost
--- cost_appendM_d xs ys d = infcostD (appendM_fromPure xs ys) d ac
---     where ac = A.empty
-
--- costArbDemand_appendM :: (Repr a, ReprDemand a b, ArbDemand (Rep a) b) => [a] -> [a] -> Cost
--- costArbDemand_appendM xs ys = infcostD' final d ac
---     where ac = A.empty
---           final@(r, _) = appendM_fromPure xs ys ac
---           d = arbitraryDemandFrom (value r)
-
--- TODO: simplify typeclasses constraints
 -- FIXME: this runs the computation twice?
+prop_costbound_d :: (ReprDemandArb a, QC.Arbitrary a) => [a] -> [a] -> QC.Property
+prop_costbound_d xs ys = QC.forAll (arbDemandM m) $ \d ->
     infcostD0 m d <= min (sizeD 1 d) (length xs + 1)
+    where m = appendM_fromPure xs ys
+
+prop_costbound_d' :: (ReprDemandArb a, QC.Arbitrary a) => [a] -> [a] -> QC.Property
+prop_costbound_d' xs ys = QC.forAll (arbDemandFrom v) $ \d ->
+    infcostD' r d ac <= min (sizeD 1 d) (length xs + 1)
+    where ac = A.empty
+          r = run (appendM_fromPure xs ys) ac
+          v = value $ fst r
+
+-- Testing an incorrect spec
+prop_costbound_d_x :: (ReprDemandArb a, QC.Arbitrary a) => [a] -> [a] -> QC.Property
+prop_costbound_d_x xs ys = QC.forAll (arbDemandM m) $ \d ->
+    infcostD0 m d <= length xs
     where m = appendM_fromPure xs ys
 
 qc_example_d :: IO ()
 qc_example_d = QC.quickCheck (prop_costbound_d :: [Int] -> [Int] -> QC.Property)
+
+qc_example_d' :: IO ()
+qc_example_d' = QC.quickCheck (prop_costbound_d' :: [Int] -> [Int] -> QC.Property)
+
+qc_example_d_x :: IO ()
+qc_example_d_x = QC.quickCheck (prop_costbound_d_x :: [Int] -> [Int] -> QC.Property)
