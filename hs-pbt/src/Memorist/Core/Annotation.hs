@@ -5,8 +5,7 @@ import Data.Set as S (Set, empty, union, insert, fromList, foldr, filter)
 import Memorist.Core.Thunk
 
 type USet = Set ThName
--- TODO: cost :: Int? or Integer?
-type Cost = Int
+type Cost = Integer
 type Annot = (Cost, USet)
 
 -- | The empty annotation
@@ -30,7 +29,7 @@ fromSet = addSet zero
 
 
 -- NOTE: implemented as lists in the Rocq ver for easier proofs,
--- but otherwise it is probably better to implement it as a function? (or at least a snoc list)
+-- but otherwise it is probably better to implement it as a function?
 type AnnotCntx = [Annot]
 
 empty :: AnnotCntx
