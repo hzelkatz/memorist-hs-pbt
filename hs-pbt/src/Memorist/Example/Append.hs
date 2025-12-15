@@ -2,9 +2,8 @@
 
 module Memorist.Example.Append where
 
-import Memorist.Core.Annotation as A
-import Memorist.Core.Thunk
-import Memorist.Core.Semantics
+-- import Memorist.Core.Core
+import Memorist.CoreF.Core
 import Memorist.Data.Interface
 import Memorist.Demand.Interface
 import Memorist.Data.List
@@ -36,11 +35,11 @@ appendM_fromPure xs ys = do
 
 cost_appendM :: Repr a => [a] -> [a] -> Int -> Cost
 -- cost_appendM xs ys n = infcost' (r, ac') u ac
---     where ac = A.empty
+--     where ac = emptyCntx
 --           (r, ac') = run (appendM_fromPure xs ys) ac
 --           u = usageLC ac' (value r) n
 cost_appendM xs ys n = infcost (appendM_fromPure xs ys) usageLC n ac
-    where ac = A.empty
+    where ac = emptyCntx
 
 ex_xs, ex_ys :: [Int]
 ex_xs = [1,2]
@@ -82,7 +81,7 @@ prop_costbound_d xs ys = QC.forAll (arbDemandM m) $ \d ->
 prop_costbound_d' :: (ReprDemandArb a, QC.Arbitrary a) => [a] -> [a] -> QC.Property
 prop_costbound_d' xs ys = QC.forAll (arbDemandFrom v) $ \d ->
     infcostD' r d ac <= fromIntegral (min (sizeD 1 d) (length xs + 1))
-    where ac = A.empty
+    where ac = emptyCntx
           r = run (appendM_fromPure xs ys) ac
           v = value $ fst r
 

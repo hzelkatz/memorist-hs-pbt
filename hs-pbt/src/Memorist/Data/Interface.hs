@@ -3,10 +3,8 @@
 
 module Memorist.Data.Interface where
 
--- import Memorist.Core.Annotation as A
--- import Memorist.Core.Thunk
-import Memorist.Core.Semantics
-import Data.Set as S
+-- import Memorist.Core.Semantics
+import Memorist.CoreF.Semantics
 
 
 class Repr a where

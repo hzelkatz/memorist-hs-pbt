@@ -2,11 +2,10 @@
 
 module Memorist.Data.List where
 
-import Memorist.Core.Annotation
-import Memorist.Core.Thunk
-import Memorist.Core.Semantics
+-- import Memorist.Core.Core
+import Memorist.CoreF.Core
 import Memorist.Data.Interface
-import Data.Set as S
+import Data.Set as S ( empty, union )
 
 
 data ListT a = NilT | ConsT (Th a) (Th (ListT a))

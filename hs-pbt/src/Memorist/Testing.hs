@@ -1,9 +1,8 @@
 module Memorist.Testing where
 
--- import Memorist.Core.Thunk as T
-import Memorist.Core.Annotation as A
-import Memorist.Core.Semantics
-import Memorist.Data.Interface
+-- import Memorist.Core.Core
+import Memorist.CoreF.Core
+-- import Memorist.Data.Interface
 import Memorist.Demand.Interface
 import Data.Set as S (union)
 -- import qualified Test.QuickCheck as QC
@@ -40,7 +39,7 @@ infcostD :: Demand a b => M a -> b -> AnnotCntx -> Cost
 infcostD m d acIni = infcostD' (run m acIni) d acIni
 
 infcostD0 :: Demand a b => M a -> b -> Cost
-infcostD0 m d = infcostD m d A.empty
+infcostD0 m d = infcostD m d emptyCntx
 -}
 infcostD' :: Demand a => (Result a, AnnotCntx) -> Dem a -> AnnotCntx -> Cost
 infcostD' final@(r, acFin) d = infcost' final u
@@ -50,4 +49,4 @@ infcostD :: Demand a => M a -> Dem a -> AnnotCntx -> Cost
 infcostD m d acIni = infcostD' (run m acIni) d acIni
 
 infcostD0 :: Demand a => M a -> Dem a -> Cost
-infcostD0 m d = infcostD m d A.empty
+infcostD0 m d = infcostD m d emptyCntx

@@ -32,8 +32,8 @@ fromSet = addSet zero
 -- but otherwise it is probably better to implement it as a function?
 type AnnotCntx = [Annot]
 
-empty :: AnnotCntx
-empty = []
+emptyCntx :: AnnotCntx
+emptyCntx = []
 
 nextIdx :: AnnotCntx -> ThName
 nextIdx = length

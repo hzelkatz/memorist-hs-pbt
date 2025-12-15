@@ -3,9 +3,8 @@
 
 module Memorist.Demand.Interface where
 
-import Memorist.Core.Annotation as A
-import Memorist.Core.Thunk
-import Memorist.Core.Semantics
+-- import Memorist.Core.Core
+import Memorist.CoreF.Core
 import Memorist.Data.Interface
 import Data.Set as S
 import Control.Monad (liftM)
@@ -161,7 +160,7 @@ instance DemandArb a => DemandArb (Th a) where
         arbitraryWrap x'
 
 arbDemandM :: (DemandArb a) => M a -> Gen (Dem a)
-arbDemandM m = arbDemandFrom $ evalValue m A.empty
+arbDemandM m = arbDemandFrom $ evalValue m emptyCntx
 
 -- Ordinary Haskell type with Memorist representation, the latter of which
 -- also has an associated demand type that has QC generators defined.
@@ -172,5 +171,5 @@ instance ReprDemandArb Bool
 instance ReprDemandArb Int
 
 arbDemandFromRepr :: ReprDemandArb a => a -> Gen (Dem (Rep a))
-arbDemandFromRepr x = arbDemandFrom $ evalValue (reprM x) A.empty
+arbDemandFromRepr x = arbDemandFrom $ evalValue (reprM x) emptyCntx
 

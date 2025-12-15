@@ -3,9 +3,8 @@
 
 module Memorist.Demand.List where
 
-import Memorist.Core.Annotation
-import Memorist.Core.Thunk
-import Memorist.Core.Semantics
+-- import Memorist.Core.Core
+import Memorist.CoreF.Core
 import Memorist.Data.Interface
 import Memorist.Data.List
 import Memorist.Demand.Interface
@@ -81,6 +80,6 @@ instance DemandArb a => DemandArb (ListT a) where
 
 instance ReprDemandArb a => ReprDemandArb [a]
 
-test1 = arbDemandFrom $ evalValue (reprM ([1..5] :: [Int])) [] :: Gen (ListD Int)
+test1 = arbDemandFrom $ evalValue (reprM ([1..5] :: [Int])) emptyCntx :: Gen (ListD Int)
 test2 = arbDemandFromRepr $ ([1..5] :: [Int]) :: Gen (ListD Int)
 

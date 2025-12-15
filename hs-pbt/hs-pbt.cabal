@@ -22,12 +22,18 @@ library
         Memorist.Core.Thunk
         Memorist.Core.Annotation
         Memorist.Core.Semantics
+        Memorist.Core
         Memorist.Data.Interface
         Memorist.Data.List
         Memorist.Demand.Interface
         Memorist.Demand.List
         Memorist.Testing
         Memorist.Example.Append
+        --
+        Memorist.CoreF.Thunk
+        Memorist.CoreF.Annotation
+        Memorist.CoreF.Semantics
+        Memorist.CoreF
     -- other-modules:
     -- other-extensions:
     build-depends: 
