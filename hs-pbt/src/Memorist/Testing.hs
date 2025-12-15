@@ -30,10 +30,6 @@ infcost m f dsize acIni = infcost' final u acIni
     where final@(r, acFin) = run m acIni
           u = f acFin (value r) dsize
 
--- TODO: if we generalize the "measure of size of the demand on the value",
--- the above type fits both ways of extracting function
--- (the straighrforward way and the way using an approx type to represent demand)?
-
 
 {-
 infcostD' :: Demand a b => (Result a, AnnotCntx) -> b -> AnnotCntx -> Cost

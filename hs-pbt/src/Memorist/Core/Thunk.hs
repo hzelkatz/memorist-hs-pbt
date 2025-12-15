@@ -5,11 +5,5 @@ module Memorist.Core.Thunk where
 -- Since we currently implment annot cntx as lists, Int is more convenient
 type ThName = Int
 
-data Th a = Th ThName a
+data Th a = Th {tname :: ThName, tval :: a}
     deriving (Eq, Show)
-
-tname :: Th a -> ThName
-tname (Th i _) = i
-
-tval :: Th a -> a
-tval (Th _ x) = x

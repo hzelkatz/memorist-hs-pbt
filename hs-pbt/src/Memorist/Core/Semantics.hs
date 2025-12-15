@@ -19,11 +19,11 @@ usageAnnot = snd . annot
 newtype M a = M (AnnotCntx -> (Result a, AnnotCntx))
 
 ret :: a -> M a
-ret x = M $ \ac -> (Result {value = x, annot = zero}, ac)
+ret x = M $ \ac -> (Result x zero, ac)
 
 bind :: M a -> (a -> M b) -> M b
 bind (M f) k = M $ \ac ->
-    let (Result {value = x, annot = a}, ac') = f ac
+    let (Result x a, ac') = f ac
         M f' = k x
         (r, ac'') = f' ac'
     in (r {annot = a `add` annot r}, ac'')
@@ -44,14 +44,14 @@ instance Monad M where
 
 lazy :: M a -> M (Th a)
 lazy (M f) = M $ \ac ->
-    let (Result {value = x, annot = a}, ac') = f ac
-    in (Result {value = Th (nextIdx ac') x, annot = A.zero}, ext ac' a)
+    let (Result x a, ac') = f ac
+    in (Result (Th (nextIdx ac') x) A.zero, ext ac' a)
 
 lazybind :: M a -> (Th a -> M b) -> M b
 lazybind m = (lazy m >>=)
 
 collect :: ThName -> M ()
-collect i = M $ \ac -> (Result {value = (), annot = fromSet (mapSu ac i)}, ac)
+collect i = M $ \ac -> (Result () (A.fromSet (mapSu ac i)), ac)
 
 forcing :: Th a -> (a -> M b) -> M b
 forcing t f = do
@@ -62,7 +62,7 @@ force :: Th a -> M a
 force t = forcing t ret
 
 tick :: M ()
-tick = M $ \ac -> (Result {value = (), annot = fromCost 1}, ac)
+tick = M $ \ac -> (Result () (A.fromCost 1), ac)
 
 
 -- Running the computation
