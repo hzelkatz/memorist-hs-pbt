@@ -1,45 +1,7 @@
-{-# LANGUAGE TypeFamilies, FlexibleContexts #-}
--- {-# LANGUAGE FlexibleInstances, UndecidableInstances #-}
+module Memorist.Data.Interface
+    ( module Memorist.Data.Interface.Data
+    , module Memorist.Data.Interface.Demand
+    ) where
 
-module Memorist.Data.Interface where
-
--- import Memorist.Core.Semantics
-import Memorist.CoreF.Semantics
-
-
-class Repr a where
-    type Rep a
-    reprM :: a -> M (Rep a)
-    abstract :: Rep a -> a
-
-{-
--- This doesn't work well.
-
-class SimpleRepr a
-
-instance SimpleRepr a => Repr a where
-    type Rep a = a
-    reprM = ret
-    abstract = id
-
-instance SimpleRepr ()
-instance SimpleRepr Bool
-instance SimpleRepr Int
--}
-
--- So define each instance separately
-
-instance Repr () where
-    type Rep () = ()
-    reprM = ret
-    abstract = id
-
-instance Repr Bool where
-    type Rep Bool = Bool
-    reprM = ret
-    abstract = id
-
-instance Repr Int where
-    type Rep Int = Int
-    reprM = ret
-    abstract = id
+import Memorist.Data.Interface.Data
+import Memorist.Data.Interface.Demand

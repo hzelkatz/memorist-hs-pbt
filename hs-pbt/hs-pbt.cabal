@@ -19,27 +19,24 @@ common warnings
 library
     import:           warnings
     exposed-modules:
-        Memorist.Core.Thunk
-        Memorist.Core.Annotation
-        Memorist.Core.Semantics
-        Memorist.Core
+        Memorist.Base.Thunk
+        Memorist.Base.Core
+        Memorist.Base.AltName
+        Memorist.Base.Basic
         Memorist.Data.Interface
+        Memorist.Data.Interface.Data
+        Memorist.Data.Interface.Demand
         Memorist.Data.List
-        Memorist.Demand.Interface
-        Memorist.Demand.List
-        Memorist.Testing
-        Memorist.Example.Append
-        --
-        Memorist.CoreF.Thunk
-        Memorist.CoreF.Annotation
-        Memorist.CoreF.Semantics
-        Memorist.CoreF
+        Memorist.Infer.Infer
+        Memorist.Memorist
+        Memorist.MemoristBasic
+        Memorist.Example.List
     -- other-modules:
     -- other-extensions:
     build-depends: 
-        -- base ^>=4.17.2.1 ,
         base >=4.14 && <5 ,
         containers ,
+        mtl >=2.3 && < 2.4,
         QuickCheck >2.15
     hs-source-dirs:
         src
