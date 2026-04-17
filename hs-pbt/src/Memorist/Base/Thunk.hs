@@ -93,3 +93,7 @@ useThunk (Th n x a) = (x, insert (NameCost n (acost a)) $ ausage a)
 
 useThunk' :: Th a -> USet
 useThunk' = snd . useThunk
+
+-- not used yet
+datasize :: (a -> Int) -> Th a -> Int
+datasize f (Th _ x _) = f x

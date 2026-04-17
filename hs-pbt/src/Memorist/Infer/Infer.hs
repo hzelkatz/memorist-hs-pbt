@@ -34,7 +34,27 @@ infcostFromPure2' :: (Memorist s m, Repr a, Repr b, Demand c) =>
 infcostFromPure2' fM x y d = infcostFromPure2 fM x y d $ initstate
 
 
--- upperbound :: (DemandArb a, Integral n) => MemoristM a -> (Dem a -> n) -> QC.Property
-upperbound :: (Memorist s m, DemandArb a, Integral n) => m a -> (Dem a -> n) -> QC.Property
-upperbound m f = QC.forAll (arbDemandM m) $ \d ->
+upperboundby :: (Memorist s m, DemandArb a, Integral n) => m a -> (Dem a -> n) -> QC.Property
+upperboundby m f = QC.forAll (arbDemandM m) $ \d ->
      MT.toInteger (infcost' m d) <= Prelude.toInteger (f d)
+
+lowerboundby :: (Memorist s m, DemandArb a, Integral n) => m a -> (Dem a -> n) -> QC.Property
+lowerboundby m f = QC.forAll (arbDemandM m) $ \d ->
+     Prelude.toInteger (f d) <= MT.toInteger (infcost' m d)
+
+exactly :: (Memorist s m, DemandArb a, Integral n) => m a -> (Dem a -> n) -> QC.Property
+exactly m f = QC.forAll (arbDemandM m) $ \d ->
+     MT.toInteger (infcost' m d) == Prelude.toInteger (f d)
+
+-- Only meaningful if the two programs produces the same pure value on same input.
+-- Demand is generated based on the result of the first program.
+compareOnSame :: (Memorist s m, DemandArb a) => m a -> m a -> (Integer -> Integer -> Bool) -> QC.Property
+compareOnSame m m' f = QC.forAll (arbDemandM m) $ \d ->
+    f (MT.toInteger (infcost' m d)) (MT.toInteger (infcost' m' d))
+
+-- TODO: also a variant of compareOnSame but with a guard (perhaps using conjunction?)
+-- to ensure that the computed values from the two programs are the same
+-- modulo names? To handle potentially nonterminating computation, may be we only
+-- check up to demanded portion. But this would slow down the process as we'd
+-- need to do this check for every generated demand.
+-- Alternatively a dedicated interface for these kinds of check.

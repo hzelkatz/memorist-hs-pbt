@@ -27,6 +27,11 @@ instance (Repr a) => Repr [a] where
     reprM = reprM_ListT
     abstract = abstract_ListT
 
+-- not used yet
+sizeT :: Int -> ListT a -> Int
+sizeT n NilT = n
+sizeT n (ConsT _ (Th _ xs _)) = 1 + sizeT n xs
+
 --------------------------------------------------------------------------------
 
 data ListD a = NilD | ConsD (ThD a) (ThD (ListD a))
