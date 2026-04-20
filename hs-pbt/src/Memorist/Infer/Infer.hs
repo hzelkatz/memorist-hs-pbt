@@ -34,17 +34,25 @@ infcostFromPure2' :: (Memorist s m, Repr a, Repr b, Demand c) =>
 infcostFromPure2' fM x y d = infcostFromPure2 fM x y d $ initstate
 
 
+upperboundbyR :: (Memorist s m, DemandArb a, Real n) => m a -> (Dem a -> n) -> QC.Property
+upperboundbyR m f = QC.forAll (arbDemandM m) $ \d ->
+     fromIntegral (MT.toInteger (infcost' m d)) <= f d
+
+lowerboundbyR :: (Memorist s m, DemandArb a, Real n) => m a -> (Dem a -> n) -> QC.Property
+lowerboundbyR m f = QC.forAll (arbDemandM m) $ \d ->
+     f d <= fromIntegral (MT.toInteger (infcost' m d))
+
+-- The two below specialize to Integral.
+
 upperboundby :: (Memorist s m, DemandArb a, Integral n) => m a -> (Dem a -> n) -> QC.Property
-upperboundby m f = QC.forAll (arbDemandM m) $ \d ->
-     MT.toInteger (infcost' m d) <= Prelude.toInteger (f d)
+upperboundby = upperboundbyR
 
 lowerboundby :: (Memorist s m, DemandArb a, Integral n) => m a -> (Dem a -> n) -> QC.Property
-lowerboundby m f = QC.forAll (arbDemandM m) $ \d ->
-     Prelude.toInteger (f d) <= MT.toInteger (infcost' m d)
+lowerboundby = lowerboundbyR
 
 exactly :: (Memorist s m, DemandArb a, Integral n) => m a -> (Dem a -> n) -> QC.Property
 exactly m f = QC.forAll (arbDemandM m) $ \d ->
-     MT.toInteger (infcost' m d) == Prelude.toInteger (f d)
+     fromIntegral (MT.toInteger (infcost' m d)) == f d
 
 -- Only meaningful if the two programs produces the same pure value on same input.
 -- Demand is generated based on the result of the first program.

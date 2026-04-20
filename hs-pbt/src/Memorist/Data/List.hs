@@ -22,7 +22,7 @@ abstract_ListT :: Repr a => ListT (Rep a) -> [a]
 abstract_ListT NilT = []
 abstract_ListT (ConsT (Th _ x _) (Th _ xs _)) = abstract x : abstract_ListT xs
 
-instance (Repr a) => Repr [a] where
+instance Repr a => Repr [a] where
     type Rep [a] = ListT (Rep a)
     reprM = reprM_ListT
     abstract = abstract_ListT

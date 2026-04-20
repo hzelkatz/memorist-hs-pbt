@@ -5,7 +5,8 @@ module Memorist.Data.Interface.Data where
 import Memorist.Base.Thunk
 import Memorist.Base.Core
 
-
+-- | 'Repr a' describes the translation of a datatype into its Memorist representation.
+-- We define such representation type via Haskell's associated types.
 class Repr a where
     type Rep a
     reprM :: Memorist s m => a -> m (Rep a)
@@ -25,6 +26,8 @@ instance Repr Int where
     type Rep Int = Int
     reprM = return
     abstract = id
+
+-- =============================================================================
 
 fromPure1 :: (Memorist s m, Repr a) => (Th (Rep a) -> m b) -> a -> m b
 fromPure1 fM x = do
