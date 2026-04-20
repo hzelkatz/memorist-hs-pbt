@@ -3,11 +3,7 @@ module Memorist.Example.List where
 import Memorist.Memorist as M
 import Memorist.Data.List
 import qualified Test.QuickCheck as QC
-    ( quickCheck, quickCheckWith, Testable, stdArgs, maxSuccess
-    , Property, Arbitrary, NonEmptyList(getNonEmpty) )
-
-quickCheckN :: QC.Testable prop => Int -> prop -> IO ()
-quickCheckN n = QC.quickCheckWith QC.stdArgs { QC.maxSuccess = n }
+    ( quickCheck, Property, Arbitrary, NonEmptyList(getNonEmpty) )
 
 -- import Data.List
 

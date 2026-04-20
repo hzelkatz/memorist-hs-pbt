@@ -58,3 +58,7 @@ compareOnSame m m' f = QC.forAll (arbDemandM m) $ \d ->
 -- check up to demanded portion. But this would slow down the process as we'd
 -- need to do this check for every generated demand.
 -- Alternatively a dedicated interface for these kinds of check.
+
+
+quickCheckN :: QC.Testable prop => Int -> prop -> IO ()
+quickCheckN n = QC.quickCheckWith QC.stdArgs { QC.maxSuccess = n }
