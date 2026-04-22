@@ -58,4 +58,4 @@ instance MSt Int where
     initstate = 0
 
 fromInt :: Int -> ThName
-fromInt n = ThName ThNameNil n
+fromInt n = ThName1 n
