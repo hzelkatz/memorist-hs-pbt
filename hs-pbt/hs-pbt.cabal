@@ -30,6 +30,7 @@ library
         Memorist.Infer.Infer
         Memorist.Memorist
         Memorist.MemoristBasic
+        -- Memorist.Example.Test
         Memorist.Example.List
         Memorist.Example.ListSort
     -- other-modules:

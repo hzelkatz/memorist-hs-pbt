@@ -1,6 +1,6 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE UndecidableInstances #-}
 
 module Memorist.Base.Core where
 
@@ -27,29 +27,98 @@ instance MonadWriter Annot Annotated where
     listen (Annotated x a) = Annotated (x, a) a
     pass (Annotated (x, f) a) = Annotated x (f a)
 
-class Monad m => MonadTick m where
-    tick :: m ()
+annotate :: (a, Annot) -> Annotated a
+annotate (x, a) = Annotated x a
 
-instance MonadTick Annotated where
-    tick = Annotated () (fromCost onetick)
-
-class (MSt s, MonadState s m) => MonadAnnot s m where
-    returnA :: Annotated a -> m a
-    -- wrapA: adds the annotation accumulated so far to the result and reset it to azero in the context
-    wrapA :: m a -> m (a, Annot)
-    run :: m a -> s -> (Annotated a, s)
-
-eval :: MonadAnnot s m => m a -> s -> Annotated a
-eval m = fst . run m
-
-eval1 :: MonadAnnot s m => m a -> Annotated a
-eval1 m = eval m initstate
+unwrapAnnot :: Annotated a -> (a, Annot)
+unwrapAnnot (Annotated x a) = (x, a)
 
 costAnnot :: Annotated a -> Cost
 costAnnot = acost . annot
 
 usageAnnot :: Annotated a -> USet
 usageAnnot = ausage . annot
+
+
+newtype AnnotT m a = AnnotT { runAnnotT :: m (Annotated a) }
+
+mapAnnotT :: (m (Annotated a) -> n (Annotated b)) -> AnnotT m a -> AnnotT n b
+mapAnnotT f = AnnotT . f . runAnnotT
+
+hoistAnnot :: Applicative m => Annotated a -> AnnotT m a
+hoistAnnot = AnnotT . pure
+
+instance Functor m => Functor (AnnotT m) where
+    fmap f = mapAnnotT (fmap (fmap f))
+
+instance Monad m => Applicative (AnnotT m) where
+    pure = hoistAnnot . pure
+
+    mf <*> mx = AnnotT $ do
+        fa <- runAnnotT mf
+        xa <- runAnnotT mx
+        return $ fa <*> xa
+
+
+instance Monad m => Monad (AnnotT m) where
+    m >>= k = AnnotT $ do
+        xa <- runAnnotT m
+        ya <- runAnnotT $ k $ value xa
+        return $ xa >> ya
+
+instance Monad m => MonadWriter Annot (AnnotT m) where
+    tell = hoistAnnot . tell
+
+    listen m = AnnotT $ do
+        xa <- runAnnotT m
+        return $ listen xa
+
+    pass m = AnnotT $ do
+        xa <- runAnnotT m
+        return $ pass xa
+
+-- NOTE to self: this requires FlexibleInstances and UndecidableInstances
+instance MonadState s m => MonadState s (AnnotT m) where
+    get = AnnotT $ do
+        s <- get
+        return $ pure s
+
+    put x = AnnotT $ do
+        put x
+        return $ pure ()
+
+
+class Monad m => MonadAnnot m where
+    -- unfolds the Annotated, returns the pure value and carry the annotation in output
+    returnA :: Annotated a -> m a
+    -- wraps the value with the annotation accumulated so far, returns
+    -- the Annotated as the new value, while resetting the output annotation to azero
+    wrapA :: m a -> m (Annotated a)
+
+instance MonadAnnot Annotated where
+    returnA = id
+
+    wrapA = pure
+
+instance Monad m => MonadAnnot (AnnotT m) where
+    returnA = hoistAnnot
+
+    wrapA = mapAnnotT (fmap wrapA)
+
+
+class Monad m => MonadTick m where
+    tick :: m ()
+
+instance MonadTick Annotated where
+    tick = Annotated () (fromCost onetick)
+
+-- NOTE to self: this helps in decl of MemoristBaseM as MonadTick
+-- instance MonadTick m => MonadTick (StateT s m) where
+--     tick = lift tick
+
+instance Monad m => MonadTick (AnnotT m) where
+    tick = hoistAnnot tick
+
 
 -- | Class for states of the Memorist monad
 class MSt a where
@@ -58,47 +127,53 @@ class MSt a where
 instance MSt ThName where
     initstate = nzero
 
-class (MSt s, MonadAnnot s m, MonadTick m) => Memorist s m where
+
+class (MonadAnnot m, MonadTick m) => MonadMemorist m where
     lazy :: m a -> m (Th a)
 
     force :: Th a -> m a
     force t = let (x, u) = useThunk t in returnA $ Annotated x (fromSet u)
 
 
-newtype BaseM s a = BaseM { runBM :: s -> (Annotated a, s) }
+class (MSt s, MonadState s m, MonadMemorist m) => Memorist s m where
+    runM :: m a -> s -> (Annotated a, s)
 
-instance Functor (BaseM s) where
-    fmap f (BaseM g) = BaseM $ \s -> let (xa, s') = g s in (fmap f xa, s')
 
-instance Applicative (BaseM s) where
-    pure x = BaseM $ \s -> (pure x, s)
-    mf <*> mx = BaseM $ \s ->
-        let (fa, s') = runBM mf s
-            (xa, s'') = runBM mx s'
-        in (fa <*> xa, s'')
+eval :: Memorist s m => m a -> s -> Annotated a
+eval m = fst . runM m
 
-instance Monad (BaseM s) where
-    mf >>= k = BaseM $ \s -> 
-        let ~(xa, s') = runBM mf s
-            ~(ya, s'') = runBM (k (value xa)) s'
-        in (ya {annot = annot xa `add` annot ya}, s'')
-        -- FIXME: not making use of that Annotated is a monad
+eval1 :: Memorist s m => m a -> Annotated a
+eval1 m = eval m initstate
 
-instance MonadState s (BaseM s) where
-    get = BaseM $ \s -> (pure s, s)
-    put s = BaseM $ \_ -> (pure (), s)
 
-instance MonadWriter (Annot) (BaseM s) where
-    tell a = BaseM $ \s -> (tell a, s)
-    listen m = BaseM $ \s -> let (xa, s') = runBM m s in (listen xa, s')
-    pass m = BaseM $ \s -> let (xa, s') = runBM m s in (pass xa, s')
+newtype MemoristBaseT s m a = MemoristBaseT { runMBT :: AnnotT (StateT s m) a }
 
-instance MonadTick (BaseM s) where
-    tick = BaseM $ \s -> (tick, s)
+runMMBT :: MemoristBaseT s m a -> s -> m (Annotated a, s)
+runMMBT m = runStateT (runAnnotT (runMBT m))
 
-instance MSt s => MonadAnnot s (BaseM s) where
-    returnA xa = BaseM $ \s -> (xa, s)
-    wrapA m = BaseM $ \s -> let (xa, s') = runBM m s in (pure (value xa, annot xa), s')
-    -- wrapA m = censor (\_ -> azero) $ listen m
-        -- Given that BaseM is a writer monad, this is essentially `censor (\_ -> azero) $ listen m`
-    run = runBM
+instance Functor m => Functor (MemoristBaseT s m) where
+    fmap f = MemoristBaseT . fmap f . runMBT
+
+instance Monad m => Applicative (MemoristBaseT s m) where
+    pure = MemoristBaseT . pure
+    mf <*> mx = MemoristBaseT $ runMBT mf <*> runMBT mx
+
+instance Monad m => Monad (MemoristBaseT s m) where
+    m >>= k = MemoristBaseT $ runMBT m >>= runMBT . k
+
+-- NOTE to self: this requires FlexibleInstances
+instance Monad m => MonadState s (MemoristBaseT s m) where
+    get = MemoristBaseT $ get
+    put = MemoristBaseT . put
+
+instance Monad m => MonadWriter Annot (MemoristBaseT s m) where
+    tell = MemoristBaseT . tell
+    listen = MemoristBaseT . listen . runMBT
+    pass = MemoristBaseT . pass . runMBT
+
+instance Monad m => MonadTick (MemoristBaseT s m) where
+    tick = MemoristBaseT $ tick
+
+instance Monad m => MonadAnnot (MemoristBaseT s m) where
+    returnA = MemoristBaseT . returnA
+    wrapA = MemoristBaseT . wrapA . runMBT

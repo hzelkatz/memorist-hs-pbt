@@ -1,54 +1,63 @@
 -- Basic version.
 
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE InstanceSigs #-}
 
 module Memorist.Base.Basic where
 
 import Memorist.Base.Thunk
 import Memorist.Base.Core
+import Control.Monad.Identity ( Identity(runIdentity) )
 import Control.Monad.State.Lazy
 import Control.Monad.Writer.Lazy
 
 
-newtype MemoristM a = MemoristM {runM :: BaseM Int a}
+type MemoristM = MemoristT Identity
 
-instance Functor MemoristM where
-    fmap f (MemoristM m) = MemoristM $ fmap f m
+-- In the basic version, the thunk name is just a natural number.
+-- The state is thus of Int type.
+newtype MemoristT m a = MemoristT { runMT :: MemoristBaseT Int m a }
 
-instance Applicative MemoristM where
-    pure = MemoristM . pure
-    mf <*> mx = MemoristM $ runM mf <*> runM mx
+instance Functor m => Functor (MemoristT m) where
+    fmap f = MemoristT . fmap f . runMT
 
-instance Monad MemoristM where
-    mf >>= k = MemoristM $ runM mf >>= runM . k
+instance Monad m => Applicative (MemoristT m) where
+    pure = MemoristT . pure
+    mf <*> mx = MemoristT $ runMT mf <*> runMT mx
 
-instance MonadState Int MemoristM where
-    get = MemoristM $ get
-    put = MemoristM . put
+instance Monad m => Monad (MemoristT m) where
+    m >>= k = MemoristT $ runMT m >>= runMT . k
 
-instance MonadWriter Annot MemoristM where
-    tell = MemoristM . tell
-    listen = MemoristM . listen . runM
-    pass = MemoristM . pass . runM
+instance Monad m => MonadState Int (MemoristT m) where
+    get = MemoristT $ get
+    put = MemoristT . put
 
-instance MonadTick MemoristM where
-    tick = MemoristM $ tick
+instance Monad m => MonadWriter Annot (MemoristT m) where
+    tell = MemoristT . tell
+    listen = MemoristT . listen . runMT
+    pass = MemoristT . pass . runMT
 
-instance MonadAnnot Int MemoristM where
-    returnA = MemoristM . returnA
-    wrapA = MemoristM . wrapA . runM
-    run = run . runM
+instance Monad m => MonadTick (MemoristT m) where
+    tick = MemoristT $ tick
 
--- While we use the `ThName` type, this version essentially uses Ints as thunk names
--- and assign names consecutively to every thunkable part in the same order as
--- if the evaluation is done eagerly.
-instance Memorist Int MemoristM where
+instance Monad m => MonadAnnot (MemoristT m) where
+    returnA = MemoristT . returnA
+    wrapA = MemoristT . wrapA . runMT
+
+-- This version assign names which are essentially just plain natural number
+-- consecutively to every thunkable part in the same order as if
+-- the evaluation is done eagerly.
+instance Monad m => MonadMemorist (MemoristT m) where
     lazy m = do
-        ~(x, a) <- wrapA m
+        xa <- wrapA m
         n <- genName
-        return $ Th n x a
+        return $ Th n (value xa) (annot xa)
 
-genName :: MemoristM ThName
+instance Memorist Int (MemoristT Identity) where
+    runM m = runIdentity . runMMBT (runMT m)
+
+genName :: Monad m => MemoristT m ThName
 genName = do
     n <- get
     put $ n + 1
