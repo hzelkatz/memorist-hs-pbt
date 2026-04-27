@@ -7,7 +7,7 @@ module Memorist.Base.AltName where
 
 import Memorist.Base.Thunk
 import Memorist.Base.Core
-import Control.Monad.Identity ( Identity(runIdentity) )
+import Control.Monad.Identity ( Identity, runIdentity )
 import Control.Monad.State.Lazy
 import Control.Monad.Writer.Lazy
 

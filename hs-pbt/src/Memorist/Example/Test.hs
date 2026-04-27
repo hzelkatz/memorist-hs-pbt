@@ -14,3 +14,9 @@ lazy1 = lazy $ tick
 
 force1 :: MemoristM ()
 force1 = tick >> lazy1 >>= force
+
+dup1 :: MemoristM Int
+dup1 = do
+    tx <- lazy $ tick >> return 1
+    x <- force tx
+    return $ x + x

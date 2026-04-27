@@ -12,11 +12,10 @@ import Test.QuickCheck (Gen, Arbitrary (..), Arbitrary1 (..), arbitrary1, shrink
 data ThD a = Need a | Skip
     deriving (Eq, Show)
 
-
 -- Defined over Memorist transformed type (the one with named thunks)
 class Demand a where
     type Dem a
-    -- final context
+
     usage :: a -> Dem a -> USet
     usage _ _ = empty
 
@@ -73,8 +72,8 @@ instance DemandArb Int where
     arbDemandFrom = return
 
 instance DemandArb a => DemandArb (Th a) where
-    arbDemandFrom (Th _ x _) = do
-        x' <- arbDemandFrom x
+    arbDemandFrom t = do
+        x' <- arbDemandFrom $ tval t
         arbitraryWrap x'
 
 arbDemandM :: (Memorist s m, DemandArb a) => m a -> Gen (Dem a)

@@ -44,7 +44,7 @@ testM_cost = infcostFromPure2' testM
 -- prop_headM_cost :: ReprDemandArb a => [a] -> QC.Property
 -- prop_headM_cost xs = xs /= [] ==> fromPure1 headM xs `exactly` \_ -> 1
 prop_headM_cost :: ReprDemandArb a => QC.NonEmptyList a -> QC.Property
-prop_headM_cost xs = fromPure1 headM xs' `exactly` \_ -> 1
+prop_headM_cost xs = fromPure1 headM xs' `exactly` \_ -> 1 :: Integer
     where xs' = QC.getNonEmpty xs
 
 qc_headM_cost :: IO ()

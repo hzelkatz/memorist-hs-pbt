@@ -88,8 +88,17 @@ fromSet = addSet azero
 
 --------------------------------------------------------------------------------
 
-data Th a = Th ThName a (Annot)
+data Th a = Th ThName a Annot
     deriving (Eq, Show)
+
+tname :: Th a -> ThName
+tname (Th n _ _) = n
+
+tval :: Th a -> a
+tval (Th _ x _) = x
+
+tannot :: Th a -> Annot
+tannot (Th _ _ a) = a
 
 useThunk :: Th a -> (a, USet)
 useThunk (Th n x a) = (x, insert (NameCost n (acost a)) $ ausage a)

@@ -1,5 +1,7 @@
 {-# LANGUAGE TypeFamilies #-}
 
+{-# OPTIONS_GHC -Wno-orphans #-}
+
 module Memorist.Data.List where
 
 import Memorist.Base.Thunk
@@ -11,26 +13,22 @@ import Test.QuickCheck as QC (Gen, Arbitrary (..), sized, chooseInt)
 data ListT a = NilT | ConsT (Th a) (Th (ListT a))
     deriving (Eq, Show)
 
-reprM_ListT :: (Memorist s m, Repr a) => [a] -> m (ListT (Rep a))
-reprM_ListT []     = return NilT
-reprM_ListT (x:xs) = do
-    tx <- lazy $ reprM x
-    txs <- lazy $ reprM_ListT xs
-    return $ ConsT tx txs
-
-abstract_ListT :: Repr a => ListT (Rep a) -> [a]
-abstract_ListT NilT = []
-abstract_ListT (ConsT (Th _ x _) (Th _ xs _)) = abstract x : abstract_ListT xs
-
 instance Repr a => Repr [a] where
     type Rep [a] = ListT (Rep a)
-    reprM = reprM_ListT
-    abstract = abstract_ListT
+
+    reprM [] = return NilT
+    reprM (x:xs) = do
+        tx <- lazy $ reprM x
+        txs <- lazy $ reprM xs
+        return $ ConsT tx txs
+
+    abstract NilT = []
+    abstract (ConsT tx txs) = abstract (tval tx) : abstract (tval txs)
 
 -- not used yet
 sizeT :: Int -> ListT a -> Int
 sizeT n NilT = n
-sizeT n (ConsT _ (Th _ xs _)) = 1 + sizeT n xs
+sizeT n (ConsT _ t) = 1 + sizeT n (tval t)
 
 --------------------------------------------------------------------------------
 
