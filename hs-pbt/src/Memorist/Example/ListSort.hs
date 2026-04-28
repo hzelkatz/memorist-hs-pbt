@@ -3,7 +3,7 @@ module Memorist.Example.ListSort where
 import Memorist.Memorist as M
 import Memorist.Data.List
 import qualified Test.QuickCheck as QC ( quickCheck, Property )
-
+import Data.List (sort)
 
 -- insertion sort
 
@@ -59,9 +59,15 @@ prop_insertM_ub x xs = fromPure2 (insertM compare) x xs `upperboundby` \d -> siz
 qc_insertM_ub :: IO ()
 qc_insertM_ub = QC.quickCheck prop_insertM_ub
 
+-- We can give, e.g., the following upper bound on the computation cost in the worst case.
+-- This bound is not the tightest possible but intuitive enough.
+-- In practice one might be interested in an even looser upper bound
+-- like (length xs)^2, which should hold in this case as well.
+-- Either way, this follows our understanding of the algorithm: its worst-case
+-- performance is in O(n^2).
 prop_insertionSortM_ub :: [Int] -> QC.Property
 prop_insertionSortM_ub xs = fromPure1 (insertionSortM compare) xs `upperboundby`
-    \_ -> length xs * length xs
+    \d -> sizeD 0 d * length xs
 
 qcN_insertionSortM_ub :: Int -> IO ()
 qcN_insertionSortM_ub n = quickCheckN n prop_insertionSortM_ub
@@ -69,7 +75,50 @@ qcN_insertionSortM_ub n = quickCheckN n prop_insertionSortM_ub
 qc_insertionSortM_ub :: IO ()
 qc_insertionSortM_ub = qcN_insertionSortM_ub 100
 
+-- Meanwhile in the best case, we expect that each element is compare against
+-- only its immediate next element (except for the last one).
+-- Thus we specify the following lower bound to test.
+prop_insertionSortM_lb :: [Int] -> QC.Property
+prop_insertionSortM_lb xs = fromPure1 (insertionSortM compare) xs `lowerboundby`
+    \_ -> max 0 (length xs - 1)
 
+qcN_insertionSortM_lb :: Int -> IO ()
+qcN_insertionSortM_lb n = quickCheckN n prop_insertionSortM_lb
+
+qc_insertionSortM_lb :: IO ()
+qc_insertionSortM_lb = qcN_insertionSortM_lb 100
+
+-- In fact, for insertion sort, the best case should exactly be when the input
+-- list is already sorted. That is, when the input list is sorted, its cost should
+-- be in Θ(n), where n is length of the input.
+-- 
+-- There are various ways to include the sortedness in the statement.
+-- In practice, an efficient way is to generate the already-sorted list to begin with.
+-- We can write a QuickCheck generator to do this task. But in this case,
+-- since we are interested in studying the performance of our implementation of
+-- the insertion sort and do not care about the correctness of, say, Haskell's
+-- built-in sorting function, for simplicity we simply sort the randomly generated
+-- list using Data.List.sort before invoking our insertion sort on it.
+-- Because our framework allows specifying properties on the vanilla Haskell types
+-- directly which are then automatically lifted to their Memorist representations,
+-- it is easy to accomplish what we want by preprocessing the generated pure lists.
+prop_insertionSortM_sorted_cost :: [Int] -> QC.Property
+prop_insertionSortM_sorted_cost xs = fromPure1 (insertionSortM compare) sorted
+    `exactly` \_ -> max 0 (length xs - 1)
+    where sorted = sort xs
+
+qcN_insertionSortM_sorted_cost :: Int -> IO ()
+qcN_insertionSortM_sorted_cost n = quickCheckN n prop_insertionSortM_sorted_cost
+
+qc_insertionSortM_sorted_cost :: IO ()
+qc_insertionSortM_sorted_cost = qcN_insertionSortM_sorted_cost 100
+
+-- NOTE: it is also possible to test a similar statement on the worst case performance,
+-- but the statement would be more complicated if we want `exactly` instead of `upperboundby`,
+-- as we have to generate input list in which each element is strictly greater
+-- than its next element---a slightly stronger property than being sorted in reverse order.
+-- This is because, we can have an equal pair of elements in the revserely sorted list,
+-- but this won't invoke more comparisons for the first element in the pair.
 
 -- -----------------------------------------------------------------------------
 
@@ -179,7 +228,7 @@ splitM txs = do
 prop_mergesortM_ub :: [Int] -> QC.Property
 prop_mergesortM_ub xs = fromPure1 (mergesortM compare) xs `upperboundbyR`
     \_ -> n * logBase 2 (max 1 n)
-    where n = fromIntegral (length xs)
+    where n = fromIntegral (length xs) :: Double
 
 qcN_mergesortM_ub :: Int -> IO ()
 qcN_mergesortM_ub n = quickCheckN n prop_mergesortM_ub
