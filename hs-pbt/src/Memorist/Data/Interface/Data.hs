@@ -1,9 +1,12 @@
 {-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE FlexibleInstances #-}
 
 module Memorist.Data.Interface.Data where
 
 import Memorist.Base.Thunk
 import Memorist.Base.Core
+
+import Control.Monad (liftM)
 
 -- | 'Repr a' describes the translation of a datatype into its Memorist representation.
 -- We define such representation type via Haskell's associated types.
@@ -27,6 +30,67 @@ instance Repr Int where
     reprM = return
     abstract = id
 
+-- -----------------------------------------------------------------------------
+
+-- We define Memorist representations for several more built-in datatypes.
+-- In general, arguments to data constructors are thunked.
+-- But depending on what is to be analyzed, we might not be interested in
+-- the impact of laziness in certain data structures.
+-- Therefore we define variants of representations to allow simplified analysis
+-- that treats the particular thunks as if always demanded.
+
+data MaybeT a = JustT (Th a) | NothingT
+    deriving (Eq, Show)
+
+instance Repr a => Repr (Maybe a) where
+    type Rep (Maybe a) = MaybeT (Rep a)
+    
+    reprM (Just x) = liftM JustT $ lazy $ reprM x
+    reprM _        = return NothingT
+
+    abstract (JustT tx) = Just $ abstract (tval tx)
+    abstract _          = Nothing
+
+-- | The "strict" variant
+newtype SMaybe a = SMaybe (Maybe a) deriving (Eq,Show)
+
+fromSMaybe :: SMaybe a -> Maybe a
+fromSMaybe (SMaybe x) = x
+
+instance Repr a => Repr (SMaybe a) where
+    type Rep (SMaybe a) = Maybe (Rep a)
+    
+    reprM (SMaybe (Just x)) = liftM Just $ reprM x
+    reprM _                 = return Nothing
+
+    abstract (Just x) = SMaybe $ Just $ abstract x
+    abstract _        = SMaybe Nothing
+
+data PairT a b = PairT (Th a) (Th b)
+    deriving (Eq, Show)
+
+instance (Repr a, Repr b) => Repr (a,b) where
+    type Rep (a,b) = PairT (Rep a) (Rep b)
+
+    reprM (x,y) = do
+        tx <- lazy $ reprM x
+        ty <- lazy $ reprM y
+        return $ PairT tx ty
+    
+    abstract (PairT tx ty) = (abstract (tval tx), abstract (tval ty))
+
+
+-- | The "strict" variant
+newtype SPair a b = SPair (a,b) deriving (Eq,Show)
+
+fromSPair :: SPair a b -> (a,b)
+fromSPair (SPair p) = p
+
+instance (Repr a, Repr b) => Repr (SPair a b) where
+    type Rep (SPair a b) = (Rep a, Rep b)
+    reprM (SPair (x,y)) = do { x' <- reprM x ; y' <- reprM y ; return (x',y') }
+    abstract (x,y) = SPair (abstract x, abstract y)
+
 -- =============================================================================
 
 fromPure1 :: (Memorist s m, Repr a) => (Th (Rep a) -> m b) -> a -> m b
@@ -40,3 +104,10 @@ fromPure2 fM x y = do
     tx <- lazy $ reprM x
     ty <- lazy $ reprM y
     fM tx ty
+
+fromPure2' :: (Memorist s m, Repr a, Repr b) =>
+    (Th (Rep a) -> Rep b -> m c) -> a -> b -> m c
+fromPure2' fM x y = do
+    tx <- lazy $ reprM x
+    y' <- reprM y
+    fM tx y'
