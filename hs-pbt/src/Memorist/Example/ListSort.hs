@@ -50,14 +50,14 @@ insertM cmp tx tys = do
 -- the input is transformed into Memorist representation types ('Rep a' of a type 'a'),
 -- and currently 'Rep a' is not injective, this signature
 --
---      prop_insertM_ub :: (ReprDemandArb a, Ord a) => a -> [a] -> QC.Property
+--      prop_insertUBound :: (ReprDemandArb a, Ord a) => a -> [a] -> QC.Property
 --
 -- would not typecheck.
-prop_insertM_ub :: Int -> [Int] -> QC.Property
-prop_insertM_ub x xs = fromPure2 (insertM compare) x xs `upperboundby` \d -> sizeD 0 d
+prop_insertUBound :: Int -> [Int] -> QC.Property
+prop_insertUBound x xs = fromPure2 (insertM compare) x xs `upperboundby` \_ d -> sizeD 0 d
 
-qc_insertM_ub :: IO ()
-qc_insertM_ub = QC.quickCheck prop_insertM_ub
+qc_insertUBound :: IO ()
+qc_insertUBound = QC.quickCheck prop_insertUBound
 
 -- We can give, e.g., the following upper bound on the computation cost in the worst case.
 -- This bound is not the tightest possible but intuitive enough.
@@ -65,28 +65,22 @@ qc_insertM_ub = QC.quickCheck prop_insertM_ub
 -- like (length xs)^2, which should hold in this case as well.
 -- Either way, this follows our understanding of the algorithm: its worst-case
 -- performance is in O(n^2).
-prop_insertionSortM_ub :: [Int] -> QC.Property
-prop_insertionSortM_ub xs = fromPure1 (insertionSortM compare) xs `upperboundby`
-    \d -> sizeD 0 d * length xs
+prop_insertionSortUBound :: [Int] -> QC.Property
+prop_insertionSortUBound xs = fromPure1 (insertionSortM compare) xs `upperboundby`
+    \_ d -> sizeD 0 d * length xs
 
-qcN_insertionSortM_ub :: Int -> IO ()
-qcN_insertionSortM_ub n = quickCheckN n prop_insertionSortM_ub
-
-qc_insertionSortM_ub :: IO ()
-qc_insertionSortM_ub = qcN_insertionSortM_ub 100
+qcN_insertionSortUBound :: Int -> IO ()
+qcN_insertionSortUBound n = quickCheckN n prop_insertionSortUBound
 
 -- Meanwhile in the best case, we expect that each element is compare against
 -- only its immediate next element (except for the last one).
 -- Thus we specify the following lower bound to test.
-prop_insertionSortM_lb :: [Int] -> QC.Property
-prop_insertionSortM_lb xs = fromPure1 (insertionSortM compare) xs `lowerboundby`
-    \_ -> max 0 (length xs - 1)
+prop_insertionSortLBound :: [Int] -> QC.Property
+prop_insertionSortLBound xs = fromPure1 (insertionSortM compare) xs `lowerboundby`
+    \_ _ -> max 0 (length xs - 1)
 
-qcN_insertionSortM_lb :: Int -> IO ()
-qcN_insertionSortM_lb n = quickCheckN n prop_insertionSortM_lb
-
-qc_insertionSortM_lb :: IO ()
-qc_insertionSortM_lb = qcN_insertionSortM_lb 100
+qcN_insertionSortLBound :: Int -> IO ()
+qcN_insertionSortLBound n = quickCheckN n prop_insertionSortLBound
 
 -- In fact, for insertion sort, the best case should exactly be when the input
 -- list is already sorted. That is, when the input list is sorted, its cost should
@@ -102,20 +96,17 @@ qc_insertionSortM_lb = qcN_insertionSortM_lb 100
 -- Because our framework allows specifying properties on the vanilla Haskell types
 -- directly which are then automatically lifted to their Memorist representations,
 -- it is easy to accomplish what we want by preprocessing the generated pure lists.
-prop_insertionSortM_sorted_cost :: [Int] -> QC.Property
-prop_insertionSortM_sorted_cost xs = fromPure1 (insertionSortM compare) sorted
-    `exactly` \_ -> max 0 (length xs - 1)
+prop_insertionSortSortedCost :: [Int] -> QC.Property
+prop_insertionSortSortedCost xs = fromPure1 (insertionSortM compare) sorted
+    `exactly` \_ _ -> max 0 (length xs - 1)
     where sorted = sort xs
 
-qcN_insertionSortM_sorted_cost :: Int -> IO ()
-qcN_insertionSortM_sorted_cost n = quickCheckN n prop_insertionSortM_sorted_cost
-
-qc_insertionSortM_sorted_cost :: IO ()
-qc_insertionSortM_sorted_cost = qcN_insertionSortM_sorted_cost 100
+qcN_insertionSortSortedCost :: Int -> IO ()
+qcN_insertionSortSortedCost n = quickCheckN n prop_insertionSortSortedCost
 
 -- NOTE: it is also possible to test a similar statement on the worst case performance,
--- but the statement would be more complicated if we want `exactly` instead of `upperboundby`,
--- as we have to generate input list in which each element is strictly greater
+-- but we need to be careful if we want `exactly` instead of `upperboundby`.
+-- We have to generate input list in which each element is strictly greater
 -- than its next element---a slightly stronger property than being sorted in reverse order.
 -- This is because, we can have an equal pair of elements in the revserely sorted list,
 -- but this won't invoke more comparisons for the first element in the pair.
@@ -225,13 +216,10 @@ splitM txs = do
 -- But in general, we might not be able to easily determine a concrete bound
 -- for a function supposed to be in O(n log n) (although this is also true for
 -- any complexity class).
-prop_mergesortM_ub :: [Int] -> QC.Property
-prop_mergesortM_ub xs = fromPure1 (mergesortM compare) xs `upperboundbyR`
-    \_ -> n * logBase 2 (max 1 n)
+prop_mergesortUBound :: [Int] -> QC.Property
+prop_mergesortUBound xs = fromPure1 (mergesortM compare) xs `upperboundby`
+    \_ _ -> n * logBase 2 (max 1 n)
     where n = fromIntegral (length xs) :: Double
 
-qcN_mergesortM_ub :: Int -> IO ()
-qcN_mergesortM_ub n = quickCheckN n prop_mergesortM_ub
-
-qc_mergesortM_ub :: IO ()
-qc_mergesortM_ub = qcN_mergesortM_ub 100
+qcN_mergesortUBound :: Int -> IO ()
+qcN_mergesortUBound n = quickCheckN n prop_mergesortUBound

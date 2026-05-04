@@ -18,23 +18,30 @@ data ThD a = Need a | Skip
 class Demand a where
     type Dem a
 
+    fullDemand :: a -> Dem a
+
     usage :: a -> Dem a -> USet
     usage _ _ = empty
 
 instance Demand a => Demand (Th a) where
     type Dem (Th a) = ThD (Dem a)
 
+    fullDemand t = Need $ fullDemand $ tval t
+
     usage t (Need d) = let (x,s) = useThunk t in s `union` usage x d
     usage _ Skip     = empty
 
 instance Demand () where
     type Dem () = ()
+    fullDemand = id
 
 instance Demand Bool where
     type Dem Bool = Bool
+    fullDemand = id
 
 instance Demand Int where
     type Dem Int = Int
+    fullDemand = id
 
 -- -----------------------------------------------------------------------------
 
@@ -75,6 +82,26 @@ instance (Demand a, Demand b) => Demand (a,b) where
     fullDemand (x,y) = (fullDemand x, fullDemand y)
 
     usage (x,y) (dx,dy) = usage x dx `union` usage y dy
+
+-- =============================================================================
+
+class Demand a => LBoundDemand a where
+    minDemand :: a -> Dem a
+
+instance Demand a => LBoundDemand (Th a) where minDemand _ = Skip
+
+instance LBoundDemand () where minDemand = id
+instance LBoundDemand Bool where minDemand = id
+instance LBoundDemand Int where minDemand = id
+
+instance Demand a => LBoundDemand (MaybeT a) where
+    minDemand (JustT _) = JustD Skip
+    minDemand NothingT  = NothingD
+instance LBoundDemand a => LBoundDemand (Maybe a) where minDemand = liftM minDemand
+
+instance (Demand a, Demand b) => LBoundDemand (PairT a b) where minDemand _ = PairD Skip Skip
+instance (LBoundDemand a, LBoundDemand b) => LBoundDemand (a,b) where
+    minDemand (x, y) = (minDemand x, minDemand y)
 
 -- =============================================================================
 
@@ -160,9 +187,19 @@ instance DemandArb a => DemandArb (Th a) where
 arbDemandM :: (Memorist s m, DemandArb a) => m a -> Gen (Dem a)
 arbDemandM m = arbDemandFrom $ value $ eval m $ initstate
 
+class (Repr a, Demand (Rep a)) => ReprDemand a
+
+instance ReprDemand ()
+instance ReprDemand Bool
+instance ReprDemand Int
+instance ReprDemand a => ReprDemand (Maybe a)
+instance ReprDemand a => ReprDemand (SMaybe a)
+instance (ReprDemand a, ReprDemand b) => ReprDemand (a,b)
+instance (ReprDemand a, ReprDemand b) => ReprDemand (SPair a b)
+
 -- Ordinary Haskell type with Memorist representation, the latter of which
 -- also has an associated demand type that has QC generators defined.
-class (Repr a, DemandArb (Rep a)) => ReprDemandArb a
+class (ReprDemand a, DemandArb (Rep a)) => ReprDemandArb a
 
 instance ReprDemandArb ()
 instance ReprDemandArb Bool
@@ -173,7 +210,7 @@ instance (ReprDemandArb a, ReprDemandArb b) => ReprDemandArb (a,b)
 instance (ReprDemandArb a, ReprDemandArb b) => ReprDemandArb (SPair a b)
 
 
--- FIXME: not definable
+-- Not definable:
 --
 -- arbDemandFromRepr :: ReprDemandArb a => a -> Gen (Dem (Rep a))
 -- arbDemandFromRepr = arbDemandM . reprM

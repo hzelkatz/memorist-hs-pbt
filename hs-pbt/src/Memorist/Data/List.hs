@@ -1,4 +1,5 @@
 {-# LANGUAGE TypeFamilies #-}
+-- {-# LANGUAGE GeneralisedNewtypeDeriving #-}
 
 {-# OPTIONS_GHC -Wno-orphans #-}
 
@@ -30,18 +31,22 @@ sizeT :: Int -> ListT a -> Int
 sizeT n NilT = n
 sizeT n (ConsT _ t) = 1 + sizeT n (tval t)
 
---------------------------------------------------------------------------------
-
+-- Demand
 data ListD a = NilD | ConsD (ThD a) (ThD (ListD a))
     deriving (Eq, Show)
 
 instance Demand a => Demand (ListT a) where
     type Dem (ListT a) = ListD (Dem a)
 
-    usage NilT           _              = empty
-    usage _              NilD           = empty
-    usage (ConsT tx txs) (ConsD dx dxs) = usage tx dx `union` usage txs dxs
+    fullDemand NilT = NilD
+    fullDemand (ConsT tx txs) = ConsD (fullDemand tx) (fullDemand txs)
 
+    usage (ConsT tx txs) (ConsD dx dxs) = usage tx dx `union` usage txs dxs
+    usage _              _              = empty
+
+instance Demand a => LBoundDemand (ListT a) where
+    minDemand NilT        = NilD
+    minDemand (ConsT _ _) = ConsD Skip Skip
 
 sizeD :: Int -> ListD a -> Int
 sizeD n NilD               = n
@@ -74,7 +79,6 @@ instance Arbitrary a => Arbitrary (ListD a) where
         genListD' k
     shrink = shrinkListD
 
-
 {-
 instance DemandArb a b => DemandArb (ListT a) (ListD b) where
     arbDemandFrom NilT = return NilD
@@ -90,4 +94,41 @@ instance DemandArb a => DemandArb (ListT a) where
         dxs <- arbDemandFrom txs
         return $ ConsD dx dxs
 
+instance ReprDemand a => ReprDemand [a]
+
 instance ReprDemandArb a => ReprDemandArb [a]
+
+-- =============================================================================
+
+-- Fully strict variant
+
+newtype SList a = SList [a]
+    deriving (Eq, Show)
+    -- deriving (Eq, Show, Foldable, Functor, Applicative, Monad)
+
+fromSList :: SList a -> [a]
+fromSList (SList l) = l
+
+instance Arbitrary a => Arbitrary (SList a) where
+    arbitrary = SList <$> arbitrary
+    shrink = map SList . shrink . fromSList
+
+instance Repr a => Repr (SList a) where
+    type Rep (SList a) = [Rep a]
+    reprM (SList l) = mapM reprM l
+    abstract = SList . map abstract
+
+instance Demand a => Demand [a] where
+    type Dem [a] = [Dem a]
+    fullDemand = map fullDemand
+    usage xs ds = foldr union empty $ zipWith usage xs ds
+
+instance LBoundDemand a => LBoundDemand [a] where
+    minDemand = map minDemand
+
+instance DemandArb a => DemandArb [a] where
+    arbDemandFrom = mapM arbDemandFrom
+
+instance ReprDemand a => ReprDemand (SList a)
+
+instance ReprDemandArb a => ReprDemandArb (SList a)

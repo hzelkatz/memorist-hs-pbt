@@ -1,5 +1,6 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE FlexibleInstances #-}
+-- {-# LANGUAGE GeneralisedNewtypeDeriving #-}
 
 module Memorist.Data.Interface.Data where
 
@@ -52,7 +53,9 @@ instance Repr a => Repr (Maybe a) where
     abstract _          = Nothing
 
 -- | The "strict" variant
-newtype SMaybe a = SMaybe (Maybe a) deriving (Eq,Show)
+newtype SMaybe a = SMaybe (Maybe a)
+    deriving (Eq,Show)
+    -- deriving (Eq,Show,Functor,Applicative,Monad)
 
 fromSMaybe :: SMaybe a -> Maybe a
 fromSMaybe (SMaybe x) = x

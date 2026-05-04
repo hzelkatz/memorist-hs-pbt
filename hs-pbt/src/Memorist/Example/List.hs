@@ -20,35 +20,12 @@ headM txs = do
         NilT -> error "empty list"
         ConsT tx _ -> force tx
 
-{-
-headM_cost :: [Int] -> Int -> Cost
-headM_cost = infcostFromPure1' headM
-
--- headM_cost [1..100000] 1
--- headM_cost [1..] 1
-
-
-testM :: (Th (ListT Int)) -> (Th (ListT Int)) -> MemoristM Int
-testM txs tys = do
-    tick
-    x <- headM txs
-    y <- headM tys
-    return $ x + y
-
-testM_cost :: [Int] -> [Int] -> Int -> Cost
-testM_cost = infcostFromPure2' testM
-
--- testM_cost [1..5] [2..6] 3
--}
-
--- prop_headM_cost :: ReprDemandArb a => [a] -> QC.Property
--- prop_headM_cost xs = xs /= [] ==> fromPure1 headM xs `exactly` \_ -> 1
-prop_headM_cost :: ReprDemandArb a => QC.NonEmptyList a -> QC.Property
-prop_headM_cost xs = fromPure1 headM xs' `exactly` \_ -> 1 :: Integer
+prop_headCost :: ReprDemandArb a => QC.NonEmptyList a -> QC.Property
+prop_headCost xs = fromPure1 headM xs' `exactly` \_ _ -> 1 :: Integer
     where xs' = QC.getNonEmpty xs
 
-qc_headM_cost :: IO ()
-qc_headM_cost = QC.quickCheck (prop_headM_cost :: QC.NonEmptyList Int -> QC.Property)
+qc_headCost :: IO ()
+qc_headCost = QC.quickCheck (prop_headCost :: QC.NonEmptyList Int -> QC.Property)
 
 
 -- append
@@ -66,12 +43,12 @@ appendM txs tys = do
             tzs <- lazy $ appendM txs' tys
             return $ ConsT tx tzs
 
-prop_appendM_ub :: ReprDemandArb a => [a] -> [a] -> QC.Property
-prop_appendM_ub xs ys =
-    fromPure2 appendM xs ys `upperboundby` \d -> min (sizeD 1 d) (length xs + 1)
+prop_appendUBound :: ReprDemandArb a => [a] -> [a] -> QC.Property
+prop_appendUBound xs ys =
+    fromPure2 appendM xs ys `upperboundby` \_ d -> min (sizeD 1 d) (length xs + 1)
 
-qc_appendM_ub :: IO ()
-qc_appendM_ub = QC.quickCheck (prop_appendM_ub :: [Int] -> [Int] -> QC.Property)
+qc_appendUBound :: IO ()
+qc_appendUBound = QC.quickCheck (prop_appendUBound :: [Int] -> [Int] -> QC.Property)
 
 
 -- take
@@ -115,18 +92,12 @@ takeM tn txs = do
                 return $ ConsT ty tzs
     else return NilT
 
--- takeM_fromPure :: Repr a => Int -> [a] -> MemoristM (ListT (Rep a))
--- takeM_fromPure = fromPure2 takeM
+prop_takeUBound :: ReprDemandArb a => Int -> [a] -> QC.Property
+prop_takeUBound n xs =
+    fromPure2 takeM n xs `upperboundby` \_ d -> min (max 1 (n + 1)) (sizeD 1 d)
 
-prop_takeM_ub :: ReprDemandArb a => Int -> [a] -> QC.Property
-prop_takeM_ub n xs =
-    fromPure2 takeM n xs `upperboundby` \d -> min (max 1 (n + 1)) (sizeD 1 d)
-
-qc_takeM_ub :: IO ()
-qc_takeM_ub = QC.quickCheck (prop_takeM_ub :: Int -> [Int] -> QC.Property)
-
--- qc_takeM_ub' :: Int -> IO ()
--- qc_takeM_ub' n = QC.quickCheck $ (prop_takeM_ub :: Int -> [Int] -> QC.Property) n [1..]
+qc_takeUBound :: IO ()
+qc_takeUBound = QC.quickCheck (prop_takeUBound :: Int -> [Int] -> QC.Property)
 
 --------------------------------------------------------------------------------
 
@@ -154,14 +125,11 @@ revM txs ta = do
 -- the demand on value, and hence the cost specification below.
 -- The 'exact' combinator specify that the cost of the program exactly
 -- equals to the expression supplied as its last argument.
-prop_reverseM_cost :: ReprDemandArb a => [a] -> QC.Property
-prop_reverseM_cost xs = fromPure1 reverseM xs `exactly` \_ -> length xs + 2
+prop_reverseCost :: ReprDemandArb a => [a] -> QC.Property
+prop_reverseCost xs = fromPure1 reverseM xs `exactly` \_ _ -> length xs + 2
 
-qcN_reverseM_cost :: Int -> IO ()
-qcN_reverseM_cost n = quickCheckN n (prop_reverseM_cost :: [Int] -> QC.Property)
-
-qc_reverseM_cost :: IO ()
-qc_reverseM_cost = qcN_reverseM_cost 100
+qcN_reverseCost :: Int -> IO ()
+qcN_reverseCost n = quickCheckN n (prop_reverseCost :: [Int] -> QC.Property)
 
 -- In comparison, this is a naïve implementation of reverse
 {-
@@ -186,26 +154,20 @@ reverseSlowM txs = do
 -- the lower bound, since it needs to go through the input list at least once.
 
 -- This is the upper bound on its computation cost
-prop_reverseSlowM_ub :: ReprDemandArb a => [a] -> QC.Property
-prop_reverseSlowM_ub xs =
-    fromPure1 reverseSlowM xs `upperboundby` \_ -> (length xs + 1) * (length xs + 1)
+prop_reverseSlowUBound :: ReprDemandArb a => [a] -> QC.Property
+prop_reverseSlowUBound xs =
+    fromPure1 reverseSlowM xs `upperboundby` \_ _ -> (length xs + 1) * (length xs + 1)
 
-qcN_reverseSlowM_ub :: Int -> IO ()
-qcN_reverseSlowM_ub n = quickCheckN n (prop_reverseSlowM_ub :: [Int] -> QC.Property)
-
-qc_reverseSlowM_ub :: IO ()
-qc_reverseSlowM_ub = qcN_reverseSlowM_ub 100
+qcN_reverseSlowUBound :: Int -> IO ()
+qcN_reverseSlowUBound n = quickCheckN n (prop_reverseSlowUBound :: [Int] -> QC.Property)
 
 -- The lower bound on its computation cost
-prop_reverseSlowM_lb :: ReprDemandArb a => [a] -> QC.Property
-prop_reverseSlowM_lb xs =
-    fromPure1 reverseSlowM xs `lowerboundby` \_ -> length xs + 1
+prop_reverseSlowLBound :: ReprDemandArb a => [a] -> QC.Property
+prop_reverseSlowLBound xs =
+    fromPure1 reverseSlowM xs `lowerboundby` \_ _ -> length xs + 1
 
-qcN_reverseSlowM_lb :: Int -> IO ()
-qcN_reverseSlowM_lb n = quickCheckN n (prop_reverseSlowM_lb :: [Int] -> QC.Property)
-
-qc_reverseSlowM_lb :: IO ()
-qc_reverseSlowM_lb = qcN_reverseSlowM_lb 100
+qcN_reverseSlowLBound :: Int -> IO ()
+qcN_reverseSlowLBound n = quickCheckN n (prop_reverseSlowLBound :: [Int] -> QC.Property)
 
 -- We can compare the cost incurred by the two versions of reverse
 -- on the same input (and wrt the same demand on the value).
@@ -218,9 +180,6 @@ prop_compareReverse xs = compareOnSame (fromPure1 reverseM xs) (fromPure1 revers
 
 qcN_compareReverse :: Int -> IO ()
 qcN_compareReverse n = quickCheckN n (prop_compareReverse :: [Int] -> QC.Property)
-
-qc_compareReverse :: IO ()
-qc_compareReverse = qcN_compareReverse 100
 
 --------------------------------------------------------------------------------
 
@@ -240,14 +199,15 @@ repeatM' tx = do
     txs <- lazy $ repeatM' tx
     return $ ConsT tx txs
 
--- input list, demand
+{-
 repeatM'_cost :: ReprDemandArb a => a -> Dem (Rep [a]) -> Cost
-repeatM'_cost = infcostFromPure1' repeatM'
+repeatM'_cost = infcostFromPure1 repeatM'
 
 -- repeatM'_cost (42::Int) $ ConsD (Need 42) $ Need $ ConsD (Need 42) Skip
+-}
 
-prop_repeatM'_cost :: ReprDemandArb a => a -> QC.Property
-prop_repeatM'_cost x = fromPure1 repeatM' x `exactly` \d -> sizeD 1 d
+prop_repeatCost :: ReprDemandArb a => a -> QC.Property
+prop_repeatCost x = fromPure1 repeatM' x `exactly` \_ d -> sizeD 1 d
 -- prop_repeatM'_ub x = QC.forAll (arbDemandM m) $ \d ->
 --     M.toInteger (infcost' m d) <= Prelude.toInteger (sizeD 1 d)
 --     where m = fromPure1 repeatM' x
@@ -261,11 +221,8 @@ prop_repeatM'_cost x = fromPure1 repeatM' x `exactly` \d -> sizeD 1 d
 -- generated based on the value of computing repeatM', both the generator and
 -- the computation of the cost inference functions underlying our framework
 -- both behave lazily by default.
-qcN_repeatM'_cost :: Int -> IO ()
-qcN_repeatM'_cost n = quickCheckN n (prop_repeatM'_cost :: Int -> QC.Property)
-
-qc_repeatM'_cost :: IO ()
-qc_repeatM'_cost = qcN_repeatM'_cost 100
+qc_repeatCost :: Int -> IO ()
+qc_repeatCost n = quickCheckN n (prop_repeatCost :: Int -> QC.Property)
 
 -- Obviously, it also works with the replicate function below, since the
 -- 'take n' function always demand a finite portion from the result of 'repeat'
@@ -281,9 +238,9 @@ replicateM tn tx = do
     txs <- lazy $ repeatM' tx
     takeM tn txs
 
-prop_replicateM_ub :: (ReprDemandArb a, QC.Arbitrary a) => Int -> a -> QC.Property
-prop_replicateM_ub n x = fromPure2 replicateM n x `upperboundby` \d ->
+prop_replicateUBound :: (ReprDemandArb a, QC.Arbitrary a) => Int -> a -> QC.Property
+prop_replicateUBound n x = fromPure2 replicateM n x `upperboundby` \_ d ->
     2 * min (max 1 (n + 1)) (sizeD 1 d) + 1
 
-qc_replicateM_ub :: IO ()
-qc_replicateM_ub = QC.quickCheck (prop_replicateM_ub :: Int -> Bool -> QC.Property)
+qc_replicateUBound :: IO ()
+qc_replicateUBound = QC.quickCheck (prop_replicateUBound :: Int -> Bool -> QC.Property)
