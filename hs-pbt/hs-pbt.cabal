@@ -33,6 +33,9 @@ library
         -- Memorist.Example.Test
         Memorist.Example.List
         Memorist.Example.ListSort
+        Memorist.Example.Queue.Base
+        Memorist.Example.Queue.Bankers
+        Memorist.Example.Queue.Batched
     -- other-modules:
     -- other-extensions:
     build-depends: 
