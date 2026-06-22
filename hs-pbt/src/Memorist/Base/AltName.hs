@@ -35,11 +35,12 @@ instance Monad m => MonadWriter Annot (MemoristT m) where
     listen = MemoristT . listen . runMT
     pass = MemoristT . pass . runMT
 
-instance Monad m => MonadTick (MemoristT m) where
-    tick = MemoristT $ tick
+-- instance Monad m => MonadTick (MemoristT m) where
+--     tick = MemoristT $ tick
 
 instance Monad m => MonadAnnot (MemoristT m) where
-    returnA = MemoristT . returnA
+    -- returnA = MemoristT . returnA
+    annotate x = MemoristT . annotate x
     wrapA = MemoristT . wrapA . runMT
 
 -- Another major difference is how the `lazy` combinator works.
@@ -49,9 +50,9 @@ instance Monad m => MonadAnnot (MemoristT m) where
 -- from which the name of the thunk as a result of this `lazy m` is also generated.
 instance Monad m => MonadMemorist (MemoristT m) where
     lazy m = do
-        xa <- enclose m
+        ~(Annotated x a) <- enclose m
         n <- genName
-        return $ Th n (value xa) (annot xa)
+        return $ Th n x a
 
 instance Memorist ThName (MemoristT Identity) where
     runM m = runIdentity . runMMBT (runMT m)

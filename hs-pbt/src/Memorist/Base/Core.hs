@@ -27,11 +27,11 @@ instance MonadWriter Annot Annotated where
     listen (Annotated x a) = Annotated (x, a) a
     pass (Annotated (x, f) a) = Annotated x (f a)
 
-annotate :: (a, Annot) -> Annotated a
-annotate (x, a) = Annotated x a
+-- annotate :: (a, Annot) -> Annotated a
+-- annotate (x, a) = Annotated x a
 
-unwrapAnnot :: Annotated a -> (a, Annot)
-unwrapAnnot (Annotated x a) = (x, a)
+-- unwrapAnnot :: Annotated a -> (a, Annot)
+-- unwrapAnnot (Annotated x a) = (x, a)
 
 costAnnot :: Annotated a -> Cost
 costAnnot = acost . annot
@@ -89,35 +89,38 @@ instance MonadState s m => MonadState s (AnnotT m) where
 
 
 class Monad m => MonadAnnot m where
-    -- unfolds the Annotated, returns the pure value and carry the annotation in output
-    returnA :: Annotated a -> m a
+    -- -- unfolds the Annotated, returns the pure value and carry the annotation in output
+    -- returnA :: Annotated a -> m a
+    --
+    -- returns the pure value in a monad and carry the annotation in the monad output
+    annotate :: a -> Annot -> m a
     -- wraps the value with the annotation accumulated so far, returns
     -- the Annotated as the new value, while resetting the output annotation to azero
     wrapA :: m a -> m (Annotated a)
 
 instance MonadAnnot Annotated where
-    returnA = id
-
+    -- returnA = id
+    annotate = Annotated
     wrapA = pure
 
 instance Monad m => MonadAnnot (AnnotT m) where
-    returnA = hoistAnnot
-
+    -- returnA = hoistAnnot
+    annotate x = hoistAnnot . annotate x
     wrapA = mapAnnotT (fmap wrapA)
 
 
-class Monad m => MonadTick m where
-    tick :: m ()
+-- class Monad m => MonadTick m where
+--     tick :: m ()
 
-instance MonadTick Annotated where
-    tick = Annotated () (fromCost onetick)
+-- instance MonadTick Annotated where
+--     tick = Annotated () (fromCost onetick)
 
--- NOTE to self: this helps in decl of MemoristBaseM as MonadTick
--- instance MonadTick m => MonadTick (StateT s m) where
---     tick = lift tick
+-- -- NOTE to self: this helps in decl of MemoristBaseM as MonadTick
+-- -- instance MonadTick m => MonadTick (StateT s m) where
+-- --     tick = lift tick
 
-instance Monad m => MonadTick (AnnotT m) where
-    tick = hoistAnnot tick
+-- instance Monad m => MonadTick (AnnotT m) where
+--     tick = hoistAnnot tick
 
 
 -- | Class for states of the Memorist monad
@@ -128,12 +131,16 @@ instance MSt ThName where
     initstate = nzero
 
 
-class (MonadAnnot m, MonadTick m) => MonadMemorist m where
+class MonadAnnot m => MonadMemorist m where
     lazy :: m a -> m (Th a)
 
     force :: Th a -> m a
-    force t = let (x, u) = useThunk t in returnA $ Annotated x (fromSet u)
+    -- force t = let (x, u) = useThunk t in returnA $ Annotated x (fromSet u)
+    force t = let (x, u) = useThunk t in annotate x (fromSet u)
 
+    tick :: m ()
+    -- tick = returnA $ Annotated () (fromCost onetick)
+    tick = annotate () (fromCost onetick)
 
 class (MSt s, MonadState s m, MonadMemorist m) => Memorist s m where
     runM :: m a -> s -> (Annotated a, s)
@@ -149,7 +156,7 @@ eval1 m = eval m initstate
 newtype MemoristBaseT s m a = MemoristBaseT { runMBT :: AnnotT (StateT s m) a }
 
 runMMBT :: MemoristBaseT s m a -> s -> m (Annotated a, s)
-runMMBT m = runStateT (runAnnotT (runMBT m))
+runMMBT = runStateT . runAnnotT . runMBT
 
 instance Functor m => Functor (MemoristBaseT s m) where
     fmap f = MemoristBaseT . fmap f . runMBT
@@ -171,9 +178,10 @@ instance Monad m => MonadWriter Annot (MemoristBaseT s m) where
     listen = MemoristBaseT . listen . runMBT
     pass = MemoristBaseT . pass . runMBT
 
-instance Monad m => MonadTick (MemoristBaseT s m) where
-    tick = MemoristBaseT $ tick
+-- instance Monad m => MonadTick (MemoristBaseT s m) where
+--     tick = MemoristBaseT $ tick
 
 instance Monad m => MonadAnnot (MemoristBaseT s m) where
-    returnA = MemoristBaseT . returnA
+    -- returnA = MemoristBaseT . returnA
+    annotate x = MemoristBaseT . annotate x
     wrapA = MemoristBaseT . wrapA . runMBT

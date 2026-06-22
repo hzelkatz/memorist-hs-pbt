@@ -37,11 +37,12 @@ instance Monad m => MonadWriter Annot (MemoristT m) where
     listen = MemoristT . listen . runMT
     pass = MemoristT . pass . runMT
 
-instance Monad m => MonadTick (MemoristT m) where
-    tick = MemoristT $ tick
+-- instance Monad m => MonadTick (MemoristT m) where
+--     tick = MemoristT $ tick
 
 instance Monad m => MonadAnnot (MemoristT m) where
-    returnA = MemoristT . returnA
+    -- returnA = MemoristT . returnA
+    annotate x = MemoristT . annotate x
     wrapA = MemoristT . wrapA . runMT
 
 -- This version assign names which are essentially just plain natural number
@@ -49,9 +50,9 @@ instance Monad m => MonadAnnot (MemoristT m) where
 -- the evaluation is done eagerly.
 instance Monad m => MonadMemorist (MemoristT m) where
     lazy m = do
-        xa <- wrapA m
+        ~(Annotated x a) <- wrapA m
         n <- genName
-        return $ Th n (value xa) (annot xa)
+        return $ Th n x a
 
 instance Memorist Int (MemoristT Identity) where
     runM m = runIdentity . runMMBT (runMT m)
