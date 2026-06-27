@@ -2,6 +2,7 @@ module Memorist.Example.ListSort where
 
 import Memorist.Memorist as M
 import Memorist.Data.List
+import Memorist.Example.Util
 import qualified Test.QuickCheck as QC ( quickCheck, Property )
 import Data.List (sort)
 

@@ -9,6 +9,7 @@ import Memorist.Memorist as M
 import Memorist.Data.List
 import Memorist.Example.Queue.Base as Q
 import Memorist.Example.List ( appendM, reverseM )
+import Memorist.Example.Util
 
 import Test.QuickCheck as QC
 
