@@ -224,3 +224,17 @@ prop_mergesortUBound xs = fromPure1 (mergesortM compare) xs `upperboundby`
 
 qcN_mergesortUBound :: Int -> IO ()
 qcN_mergesortUBound n = quickCheckN n prop_mergesortUBound
+
+-- NOTE: since the bound is not specified in terms of the demand,
+-- we can alternatively always test against full demand on the resulting list.
+-- But the test will be much slower to run, due to having to generate the demand
+-- as well as collect and comupte cost agaist the full result list which takes
+-- more time in general, and forcing the computation to be fully performed as well.
+--
+prop_mergesortUBound' :: [Int] -> Bool
+prop_mergesortUBound' xs = fromPure1 (mergesortM compare) xs `upperboundWith` fullDemand
+    $ \_ _ -> n * logBase 2 (max 1 n)
+    where n = fromIntegral (length xs) :: Double
+
+qcN_mergesortUBound' :: Int -> IO ()
+qcN_mergesortUBound' n = quickCheckN n prop_mergesortUBound'
