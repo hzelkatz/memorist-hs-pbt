@@ -6,6 +6,8 @@ import Memorist.Example.Util
 import qualified Test.QuickCheck as QC
     ( quickCheck, Property, Arbitrary, NonEmptyList(getNonEmpty) )
 
+import Prelude hiding (mapM)
+
 -- import Data.List
 
 -- head
@@ -283,3 +285,136 @@ prop_replicateUBound' n x = fromPure2 replicateM n x `upperboundby` \_ d ->
 
 qc_replicateUBound' :: IO ()
 qc_replicateUBound' = QC.quickCheck (prop_replicateUBound' :: Int -> Bool -> QC.Property)
+
+
+--------------------------------------------------------------------------------
+
+-- Examples involving higher-order functions
+
+{-
+    map :: (a -> b) -> [a] -> [b]
+    map _ []     = []
+    map f (x:xs) = f x : map f xs
+-}
+mapM :: (Th a -> MemoristM b) -> Th (ListT a) -> MemoristM (ListT b)
+mapM fM txs = do
+    tick
+    xs <- force txs
+    case xs of
+        NilT -> return NilT
+        ConsT ty tys -> do
+            tz <- lazy $ fM ty
+            tzs <- lazy $ mapM fM tys
+            return $ ConsT tz tzs
+
+{-
+    foldr :: (a -> b -> b) -> b -> [a] -> b
+    foldr k z = go
+          where
+            go []     = z
+            go (y:ys) = y `k` go ys
+
+    --> 
+    foldr k z [] = z
+    foldr k z (x:xs) = let acc = foldr k z xs in x `k` acc
+
+-}
+foldrM :: (Th a -> Th b -> MemoristM b) -> Th b -> Th (ListT a) -> MemoristM b
+foldrM kM tz txs = do
+    tick
+    xs <- force txs
+    case xs of
+        NilT -> force tz
+        ConsT ty tys -> do
+            ta <- lazy $ foldrM kM tz tys
+            kM ty ta
+
+{-
+-- foldl classical implementation
+
+    foldl :: (b -> a -> b) -> b -> [a] -> b
+    foldl k z [] = z
+    foldl k z (x:xs) = let z' = z `k` x in foldl k z' xs
+-}
+foldlM :: (Th b -> Th a -> MemoristM b) -> Th b -> Th (ListT a) -> MemoristM b
+foldlM kM tz txs = do
+    tick
+    xs <- force txs
+    case xs of
+        NilT -> force tz
+        ConsT ty tys -> do
+            tz' <- lazy $ kM tz ty
+            foldlM kM tz' tys
+
+{-
+    concat :: [[a]] -> [a]
+    concat = foldr (++) []
+-}
+concatM :: Th (ListT (ListT a)) -> MemoristM (ListT a)
+concatM txs = do
+    tick
+    tz <- lazy $ return NilT
+    foldrM appendM tz txs
+
+prop_concatMUBound :: (ReprDemandArb a, QC.Arbitrary a) => [[a]] -> QC.Property
+prop_concatMUBound xss = fromPure1 concatM xss `upperboundby` \_ _ ->
+    -- 2 * (sizeD 1 d + length xss) + 1
+    2 * length xss + length (concat xss) + 2
+
+qcN_concatMUBound :: Int -> IO ()
+qcN_concatMUBound n = quickCheckN n (prop_concatMUBound :: [[Int]] -> QC.Property)
+
+-- prop_concatMUBound' :: (ReprDemandArb a, QC.Arbitrary a) => [[a]] -> Bool
+-- prop_concatMUBound' xss = fromPure1 concatM xss `upperboundWith` fullDemand $ \_ d ->
+--     2 * (sizeD 1 d + length xss) + 1
+
+-- qcN_concatMUBound' :: Int -> IO ()
+-- qcN_concatMUBound' n = quickCheckN n (prop_concatMUBound' :: [[Int]] -> Bool)
+
+cost_concatM :: ReprDemand a => [[a]] -> (Rep [a] -> Dem (Rep [a])) -> Cost
+cost_concatM xss = infcost (fromPure1 concatM xss)
+
+concatM' :: Th (ListT (ListT a)) -> MemoristM (ListT a)
+concatM' txs = do
+    tick
+    tz <- lazy $ return NilT
+    foldlM appendM tz txs
+
+prop_concatM'UBound :: (ReprDemandArb a, QC.Arbitrary a) => [[a]] -> QC.Property
+prop_concatM'UBound xss = fromPure1 concatM' xss `upperboundby` \_ _ ->
+    2 * length xss + length (concat xss) + 10
+
+qcN_concatM'UBound :: Int -> IO ()
+qcN_concatM'UBound n = quickCheckN n (prop_concatM'UBound :: [[Int]] -> QC.Property)
+-- *** Failed! Falsified (after 105 tests and 6 shrinks):     
+-- [[0],[],[]]
+-- ConsD (Need 0) (Need NilD)
+
+cost_concatM' :: ReprDemand a => [[a]] -> (Rep [a] -> Dem (Rep [a])) -> Cost
+cost_concatM' xss = infcost (fromPure1 concatM' xss)
+
+-- ttt1 = (cost_concatM' xss (\_ -> d), 2 * length xss + length (concat xss) + 2)
+--     where xss = [[0],[],[]] :: [[Int]]
+--           d = ConsD (Need 0) (Need NilD)
+-- -- 10, 9
+
+-- The example is not very informative though!
+
+-- NOTE: Testing with larger constants;
+-- Eg. 2 * (length xss + length (concat xss)) + 8
+--
+-- ghci> qcN_concatM'UBound 1000
+-- *** Failed! Falsified (after 12 tests and 19 shrinks):    
+-- [[0],[0,0,0],[],[],[]]
+-- ConsD (Need 0) (Need (ConsD (Need 0) (Need (ConsD (Need 0) (Need (ConsD (Need 0) (Need NilD)))))))
+--
+-- ttt2 = (cost_concatM' xss (\_ -> d), 2 * length xss + length (concat xss) + 2)
+--     where xss = [[0],[0,0,0],[],[],[]] :: [[Int]]
+--           d = ConsD (Need 0) (Need (ConsD (Need 0) (Need (ConsD (Need 0) (Need (ConsD (Need 0) (Need NilD)))))))
+-- -- (25, 16)
+-- Slightly bigger difference but...
+-- 
+
+-- For comparison, a handpicked example
+-- let xss = ([[1..20],[2..16],[3..12],[4..8],[5]]::[[Int]]) in (cost_concatM' xss fullDemand, 2 * length xss + length (concat xss) + 2)
+-- -- (162,63)
