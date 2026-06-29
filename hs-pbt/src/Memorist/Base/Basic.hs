@@ -61,10 +61,8 @@ genName :: Monad m => MemoristT m ThName
 genName = do
     n <- get
     put $ n + 1
-    return $ fromInt n
+    return $ getName n
 
 instance MSt Int where
     initstate = 0
-
-fromInt :: Int -> ThName
-fromInt n = ThName1 n
+    getName = ThName1
