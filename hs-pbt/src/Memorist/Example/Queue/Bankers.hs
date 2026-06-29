@@ -227,6 +227,8 @@ qcN_bankersRunTraceCost' :: Int -> IO ()
 qcN_bankersRunTraceCost' n = quickCheckN n (prop_bankersRunTraceCost' :: BankersQueue Int -> Trace1 Int -> Bool)
 
 -- Fixed to full demand. NOTE: just for experiment; this does not hold in general.
+-- Asking for "full demand" actually violates the queue interface where elements
+-- are only accessed via dequque operation.
 prop_bankersRunTraceCost1 :: ReprDemandArb a => Trace1 a -> Bool
 prop_bankersRunTraceCost1 t =
     runTraceFromPure (Q.empty :: BankersQueue a) t `upperboundWith` fullDemand $

@@ -168,9 +168,14 @@ prop_batchedRunTraceCost1 = prop_batchedRunTraceCost'
 qcN_batchedRunSeqCost :: Int -> IO ()
 qcN_batchedRunSeqCost n = quickCheckN n (prop_batchedRunSeqCost :: SeqTrace Int -> Property)
 
+-- In principle this does not hold. This trace generator tends to work better with
+-- finding counterexamples for batched queue.
+-- Not implementing shrinkers yet so the counterexamples are often ugly.
 qcN_batchedRunTraceCost :: Int -> IO ()
 qcN_batchedRunTraceCost n = quickCheckN n (prop_batchedRunTraceCost :: LSTrace Int -> Property)
 
+-- In principle this does not hold either but this trace generator is less effective
+-- in finding counterexamples.
 qcN_batchedRunTraceCost1 :: Int -> IO ()
 qcN_batchedRunTraceCost1 n = quickCheckN n (prop_batchedRunTraceCost1 :: RanTrace Int -> Property)
 

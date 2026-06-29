@@ -46,10 +46,34 @@ appendM txs tys = do
 
 prop_appendUBound :: ReprDemandArb a => [a] -> [a] -> QC.Property
 prop_appendUBound xs ys =
-    fromPure2 appendM xs ys `upperboundby` \_ d -> min (sizeD 1 d) (length xs + 1)
+    fromPure2 appendM xs ys `upperboundby` \_ d -> sizeD 1 d
 
 qc_appendUBound :: IO ()
 qc_appendUBound = QC.quickCheck (prop_appendUBound :: [Int] -> [Int] -> QC.Property)
+
+prop_appendCost :: ReprDemandArb a => [a] -> [a] -> QC.Property
+prop_appendCost xs ys =
+    fromPure2 appendM xs ys `exactly` \_ d -> min (sizeD 1 d) (length xs + 1)
+
+qc_appendCost :: IO ()
+qc_appendCost = QC.quickCheck (prop_appendCost :: [Int] -> [Int] -> QC.Property)
+
+{-
+-- Test examples
+tttt1= fullDemand $ value $ eval (reprM [True,True,True] :: MemoristM (ListT Bool)) initstate
+tttt2 = eval (fromPure2 appendM [True,True] ([]::[Bool])) initstate
+tttt3 = eval (fromPure2 appendM [True,True,True] ([]::[Bool])) initstate
+tttt3v = value tttt3
+tttt3d = fullDemand tttt3v
+tttt3c = calcCost tttt3 tttt3d
+tttt3c1 = infcost (fromPure2 appendM [True,True,True] ([]::[Bool])) fullDemand
+
+appendM_test :: Cost
+appendM_test = infcost (fromPure2 appendM ([1,2..]::[Int]) ([1,2..]::[Int])) minDemand
+
+qc_appendM_i :: IO ()
+qc_appendM_i = QC.quickCheck $ (prop_appendUBound ([1,2..]::[Int]) ([1,2..]::[Int]))
+-}
 
 
 -- take
@@ -162,6 +186,13 @@ prop_reverseSlowUBound xs =
 qcN_reverseSlowUBound :: Int -> IO ()
 qcN_reverseSlowUBound n = quickCheckN n (prop_reverseSlowUBound :: [Int] -> QC.Property)
 
+prop_reverseSlowUBoundWrong :: ReprDemandArb a => [a] -> QC.Property
+prop_reverseSlowUBoundWrong xs =
+    fromPure1 reverseSlowM xs `upperboundby` \_ _ -> length xs + 2
+
+qcN_reverseSlowUBoundWrong :: Int -> IO ()
+qcN_reverseSlowUBoundWrong n = quickCheckN n (prop_reverseSlowUBoundWrong :: [Int] -> QC.Property)
+
 -- The lower bound on its computation cost
 prop_reverseSlowLBound :: ReprDemandArb a => [a] -> QC.Property
 prop_reverseSlowLBound xs =
@@ -239,9 +270,16 @@ replicateM tn tx = do
     txs <- lazy $ repeatM' tx
     takeM tn txs
 
-prop_replicateUBound :: (ReprDemandArb a, QC.Arbitrary a) => Int -> a -> QC.Property
-prop_replicateUBound n x = fromPure2 replicateM n x `upperboundby` \_ d ->
+prop_replicateUBound :: (ReprDemandArb a, QC.Arbitrary a) => Int -> a -> Bool
+prop_replicateUBound n x = fromPure2 replicateM n x `upperboundWith` fullDemand $ \_ _ ->
+    2 * max 1 (n + 1) + 1
+
+qcN_replicateUBound :: Int -> IO ()
+qcN_replicateUBound n = quickCheckN n (prop_replicateUBound' :: Int -> Bool -> QC.Property)
+
+prop_replicateUBound' :: (ReprDemandArb a, QC.Arbitrary a) => Int -> a -> QC.Property
+prop_replicateUBound' n x = fromPure2 replicateM n x `upperboundby` \_ d ->
     2 * min (max 1 (n + 1)) (sizeD 1 d) + 1
 
-qc_replicateUBound :: IO ()
-qc_replicateUBound = QC.quickCheck (prop_replicateUBound :: Int -> Bool -> QC.Property)
+qc_replicateUBound' :: IO ()
+qc_replicateUBound' = QC.quickCheck (prop_replicateUBound' :: Int -> Bool -> QC.Property)

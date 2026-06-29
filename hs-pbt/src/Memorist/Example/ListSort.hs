@@ -73,7 +73,7 @@ prop_insertionSortUBound xs = fromPure1 (insertionSortM compare) xs `upperboundb
 qcN_insertionSortUBound :: Int -> IO ()
 qcN_insertionSortUBound n = quickCheckN n prop_insertionSortUBound
 
--- Meanwhile in the best case, we expect that each element is compare against
+-- Meanwhile in the best case, we expect that each element is compared against
 -- only its immediate next element (except for the last one).
 -- Thus we specify the following lower bound to test.
 prop_insertionSortLBound :: [Int] -> QC.Property
