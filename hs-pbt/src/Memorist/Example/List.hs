@@ -4,11 +4,9 @@ import Memorist.Memorist as M
 import Memorist.Data.List
 import Memorist.Example.Util
 import Test.QuickCheck as QC
-    ( quickCheck, Property, Arbitrary, NonEmptyList(getNonEmpty) )
+    ( quickCheck, Property, Arbitrary, NonEmptyList(getNonEmpty), (.&&.) )
 
 import Prelude hiding (mapM)
-
--- import Data.List
 
 -- head
 {-
@@ -23,13 +21,9 @@ headM txs = do
         NilT -> error "empty list"
         ConsT tx _ -> force tx
 
-prop_headCost :: ReprDemandArb a => QC.NonEmptyList a -> QC.Property
-prop_headCost xs = fromPure1 headM xs' `exactly` \_ _ -> 1 :: Integer
-    where xs' = QC.getNonEmpty xs
-
 qc_headCost :: IO ()
-qc_headCost = QC.quickCheck (prop_headCost :: QC.NonEmptyList Int -> QC.Property)
-
+qc_headCost = quickCheck $ \(xs :: NonEmptyList Int) ->
+    fromPure1 headM (getNonEmpty xs) `exactly` \_ _ -> 1 :: Integer
 
 -- append
 {-
@@ -46,22 +40,49 @@ appendM txs tys = do
             tzs <- lazy $ appendM txs' tys
             return $ ConsT tx tzs
 
-prop_appendUBound :: ReprDemandArb a => [a] -> [a] -> QC.Property
-prop_appendUBound xs ys =
-    fromPure2 appendM xs ys `upperboundby` \_ d -> sizeD 1 d
+{-
+prop_appendBoundAttempt :: ReprDemandArb a => [a] -> [a] -> Property
+prop_appendBoundAttempt xs ys =
+    (m `upperboundby` \_ _ -> length xs) .&&.
+    (m `upperboundby` \_ d -> sizeD 0 d)
+    where m = fromPure2 appendM xs ys
 
-qc_appendUBound :: IO ()
-qc_appendUBound = QC.quickCheck (prop_appendUBound :: [Int] -> [Int] -> QC.Property)
+qc_appendBoundAttempt :: IO ()
+qc_appendBoundAttempt = quickCheck (prop_appendBoundAttempt :: [Int] -> [Int] -> Property)
+-}
 
-prop_appendCost :: ReprDemandArb a => [a] -> [a] -> QC.Property
-prop_appendCost xs ys =
+prop_appendBound :: ReprDemandArb a => [a] -> [a] -> Property
+prop_appendBound xs ys =
+    (m `upperboundby` \_ _ -> length xs + 1) .&&.
+    (m `upperboundby` \_ d -> sizeD 1 d)
+    where m = fromPure2 appendM xs ys
+
+qcN_appendBound :: Int -> IO ()
+qcN_appendBound n = quickCheckN n (prop_appendBound :: [Int] -> [Int] -> Property)
+
+-- A more exact specification
+qc_appendCost :: IO ()
+qc_appendCost = quickCheck $ \(xs :: [Int]) (ys :: [Int]) ->
     fromPure2 appendM xs ys `exactly` \_ d -> min (sizeD 1 d) (length xs + 1)
 
-qc_appendCost :: IO ()
-qc_appendCost = QC.quickCheck (prop_appendCost :: [Int] -> [Int] -> QC.Property)
+-- One must be cautious that, even though the Memorist interface is lazy,
+-- one might accidentally forces infinite computations in other places,
+-- such as when specifying bounds.
+-- For instance, this test hangs if one tries to run it:
+--
+-- qc_appendInfBad :: IO ()
+-- qc_appendInfBad = quickCheck (prop_appendBound ([1,2..]::[Int]) ([1,2..]::[Int]))
+--
+-- but the issue is because the bound is specified with `length` (which is
+-- strict in its argument) on the first input list to the appending function.
+-- If we consider a looser bound such as the one below, it works perfectly fine.
+qc_appendInfOk :: IO ()
+qc_appendInfOk = quickCheck $
+    fromPure2 appendM xs ys `upperboundby` \_ d -> sizeD 1 d
+    where (xs, ys) = ([1,2..]::[Int], [1,2..]::[Int])
 
 {-
--- Test examples
+-- Other test examples
 tttt1= fullDemand $ value $ eval (reprM [True,True,True] :: MemoristM (ListT Bool)) initstate
 tttt2 = eval (fromPure2 appendM [True,True] ([]::[Bool])) initstate
 tttt3 = eval (fromPure2 appendM [True,True,True] ([]::[Bool])) initstate
@@ -72,9 +93,6 @@ tttt3c1 = infcost (fromPure2 appendM [True,True,True] ([]::[Bool])) fullDemand
 
 appendM_test :: Cost
 appendM_test = infcost (fromPure2 appendM ([1,2..]::[Int]) ([1,2..]::[Int])) minDemand
-
-qc_appendM_i :: IO ()
-qc_appendM_i = QC.quickCheck $ (prop_appendUBound ([1,2..]::[Int]) ([1,2..]::[Int]))
 -}
 
 
