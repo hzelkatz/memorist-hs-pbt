@@ -65,4 +65,4 @@ genName = do
 
 instance MSt Int where
     initstate = 0
-    getName = ThName1
+    getName = fromInt

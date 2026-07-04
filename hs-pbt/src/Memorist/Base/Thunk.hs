@@ -1,44 +1,31 @@
 module Memorist.Base.Thunk where
 
 import Prelude hiding (toInteger, fromInteger)
+import Data.List.NonEmpty (NonEmpty(..), (<|))
 import qualified Data.Set as Set
 
 
--- | A thunk name under this scheme is either constructed using only a number,
--- or has other other names nested in addition to a number.
--- In fact, a name is essentially just a nonempty sequence of numbers.
-data ThName = ThName1 Int | ThName2 ThName Int
-    deriving (Eq, Ord, Show)
--- ^ TODO: default ord is actually wrong semantically
+-- TODO: this version has performance issue in terms of name comparison.
+-- Use Data.Sequence.Seq instead?
 
--- TODO: implement a better structure for efficient comparison as well
--- instance Ord ThName where
---     compare (ThName1 i) (ThName1 j) = compare i j
---     compare n1@(ThName1 _) (ThName2 n2 _) =
---         case compare n1 n2 of
---             EQ -> LT    -- n1 < (n1,x)
---             ord -> ord
---     compare (ThName2 n1 _) n2@(ThName1 _) =
---         case compare n1 n2 of
---             EQ -> GT    -- (n2,x) > n2
---             ord -> ord
---     compare (ThName2 n1 i) (ThName2 n2 j) =
---         case compare n1 n2 of
---             EQ -> compare i j
---             ord -> ord
+-- | A thunk name is essentially just a nonempty sequence of numbers.
+data ThName = ThName (NonEmpty Int)
+    deriving (Eq, Ord, Show)
 
 -- | The 0 name
 nzero :: ThName
-nzero = ThName1 0
+nzero = ThName (0 :| [])
 
 -- | The next name at the same level
 nnext :: ThName -> ThName
-nnext (ThName1 i) = ThName1 (i + 1)
-nnext (ThName2 ns i) = ThName2 ns (i + 1)
+nnext (ThName (n :| ns)) = ThName $ (n + 1) :| ns
 
 -- | Produce the first name at the next level
 nshift :: ThName -> ThName
-nshift n = ThName2 n 0
+nshift (ThName n) = ThName (0 <| n)
+
+fromInt :: Int -> ThName
+fromInt i = ThName (i :| [])
 
 newtype Cost = Cost Integer
     deriving (Eq, Ord, Show)
