@@ -4,7 +4,7 @@ import Memorist.Memorist as M
 import Memorist.Data.List
 import Memorist.Example.Util
 import Test.QuickCheck as QC
-    ( quickCheck, Property, Arbitrary, NonEmptyList(getNonEmpty), (.&&.) )
+    ( quickCheck, Property, Arbitrary, NonEmptyList(getNonEmpty), (.&&.), (.||.), (==>), disjoin )
 
 import Prelude hiding (mapM)
 
@@ -325,42 +325,25 @@ qcN_replicateBound' n = quickCheckN n $ \(x :: Int) ->
 -- Examples involving higher-order functions
 
 {-
-    map :: (a -> b) -> [a] -> [b]
-    map _ []     = []
-    map f (x:xs) = f x : map f xs
--}
-mapM :: (Th a -> MemoristM b) -> Th (ListT a) -> MemoristM (ListT b)
-mapM fM txs = do
-    tick
-    xs <- force txs
-    case xs of
-        NilT -> return NilT
-        ConsT ty tys -> do
-            tz <- lazy $ fM ty
-            tzs <- lazy $ mapM fM tys
-            return $ ConsT tz tzs
-
-{-
     foldr :: (a -> b -> b) -> b -> [a] -> b
     foldr k z = go
           where
             go []     = z
             go (y:ys) = y `k` go ys
-
-    --> 
+    ---(ANF)--->
     foldr k z [] = z
     foldr k z (x:xs) = let acc = foldr k z xs in x `k` acc
-
 -}
-foldrM :: (Th a -> Th b -> MemoristM b) -> Th b -> Th (ListT a) -> MemoristM b
-foldrM kM tz txs = do
+foldrM :: Th (Th a -> Th b -> MemoristM b) -> Th b -> Th (ListT a) -> MemoristM b
+foldrM tk tz txs = do
     tick
     xs <- force txs
     case xs of
         NilT -> force tz
         ConsT ty tys -> do
-            ta <- lazy $ foldrM kM tz tys
-            kM ty ta
+            k <- force tk
+            ta <- lazy $ foldrM tk tz tys
+            k ty ta
 
 {-
 -- foldl classical implementation
@@ -369,15 +352,16 @@ foldrM kM tz txs = do
     foldl k z [] = z
     foldl k z (x:xs) = let z' = z `k` x in foldl k z' xs
 -}
-foldlM :: (Th b -> Th a -> MemoristM b) -> Th b -> Th (ListT a) -> MemoristM b
-foldlM kM tz txs = do
+foldlM :: Th (Th b -> Th a -> MemoristM b) -> Th b -> Th (ListT a) -> MemoristM b
+foldlM tk tz txs = do
     tick
     xs <- force txs
     case xs of
         NilT -> force tz
         ConsT ty tys -> do
-            tz' <- lazy $ kM tz ty
-            foldlM kM tz' tys
+            k <- force tk
+            tz' <- lazy $ k tz ty
+            foldlM tk tz' tys
 
 {-
     concat :: [[a]] -> [a]
@@ -386,45 +370,43 @@ foldlM kM tz txs = do
 concatM :: Th (ListT (ListT a)) -> MemoristM (ListT a)
 concatM txs = do
     tick
+    ta <- lazy $ return appendM
     tz <- lazy $ return NilT
-    foldrM appendM tz txs
-
-prop_concatMUBound :: (ReprDemandArb a, QC.Arbitrary a) => [[a]] -> QC.Property
-prop_concatMUBound xss = fromPure1 concatM xss `upperboundby` \_ _ ->
-    -- 2 * (sizeD 1 d + length xss) + 1
-    2 * length xss + length (concat xss) + 2
-
-qcN_concatMUBound :: Int -> IO ()
-qcN_concatMUBound n = quickCheckN n (prop_concatMUBound :: [[Int]] -> QC.Property)
-
--- prop_concatMUBound' :: (ReprDemandArb a, QC.Arbitrary a) => [[a]] -> Bool
--- prop_concatMUBound' xss = fromPure1 concatM xss `upperboundWith` fullDemand $ \_ d ->
---     2 * (sizeD 1 d + length xss) + 1
-
--- qcN_concatMUBound' :: Int -> IO ()
--- qcN_concatMUBound' n = quickCheckN n (prop_concatMUBound' :: [[Int]] -> Bool)
+    foldrM ta tz txs
 
 cost_concatM :: ReprDemand a => [[a]] -> (Rep [a] -> Dem (Rep [a])) -> Cost
 cost_concatM xss = infcost (fromPure1 concatM xss)
 
+qcN_concatMBound :: Int -> IO ()
+qcN_concatMBound n = quickCheckN n $ \(xss :: [[Int]]) ->
+    fromPure1 concatM xss `upperboundby` \_ d -> 2 * (sizeD 1 d + length xss) + 1
+
+qcN_concatMBound' :: Int -> IO ()
+qcN_concatMBound' n = quickCheckN n $ \(xss :: [[Int]]) ->
+    fromPure1 concatM xss `upperboundby` \_ _ -> 2 * length xss + length (concat xss) + 2
+
 concatM' :: Th (ListT (ListT a)) -> MemoristM (ListT a)
 concatM' txs = do
     tick
+    ta <- lazy $ return appendM
     tz <- lazy $ return NilT
-    foldlM appendM tz txs
-
-prop_concatM'UBound :: (ReprDemandArb a, QC.Arbitrary a) => [[a]] -> QC.Property
-prop_concatM'UBound xss = fromPure1 concatM' xss `upperboundby` \_ _ ->
-    2 * length xss + length (concat xss) + 10
-
-qcN_concatM'UBound :: Int -> IO ()
-qcN_concatM'UBound n = quickCheckN n (prop_concatM'UBound :: [[Int]] -> QC.Property)
--- *** Failed! Falsified (after 105 tests and 6 shrinks):     
--- [[0],[],[]]
--- ConsD (Need 0) (Need NilD)
+    foldlM ta tz txs
 
 cost_concatM' :: ReprDemand a => [[a]] -> (Rep [a] -> Dem (Rep [a])) -> Cost
 cost_concatM' xss = infcost (fromPure1 concatM' xss)
+
+qcN_concatM'Bound :: Int -> IO ()
+qcN_concatM'Bound n = quickCheckN n $ \(xss :: [[Int]]) ->
+    fromPure1 concatM' xss `upperboundby` \_ d -> 2 * (sizeD 1 d + length xss) + 1
+
+qcN_concatM'Bound' :: Int -> IO ()
+qcN_concatM'Bound' n = quickCheckN n $ \(xss :: [[Int]]) ->
+    fromPure1 concatM' xss `upperboundby` \_ _ -> 2 * length xss + length (concat xss) + 2
+
+-- qcN_concatM'LBound :: Int -> IO ()
+-- qcN_concatM'LBound n = quickCheckN n $ \(xss :: [[Int]]) ->
+--     disjoin $ replicate 10 $
+--     fromPure1 concatM' xss `lowerboundby` \_ d -> sizeD 1 d * sizeD 1 d
 
 -- ttt1 = (cost_concatM' xss (\_ -> d), 2 * length xss + length (concat xss) + 2)
 --     where xss = [[0],[],[]] :: [[Int]]
@@ -451,3 +433,22 @@ cost_concatM' xss = infcost (fromPure1 concatM' xss)
 -- For comparison, a handpicked example
 -- let xss = ([[1..20],[2..16],[3..12],[4..8],[5]]::[[Int]]) in (cost_concatM' xss fullDemand, 2 * length xss + length (concat xss) + 2)
 -- -- (162,63)
+
+
+{-
+    map :: (a -> b) -> [a] -> [b]
+    map _ []     = []
+    map f (x:xs) = f x : map f xs
+-}
+mapM :: Th (Th a -> MemoristM b) -> Th (ListT a) -> MemoristM (ListT b)
+mapM tf txs = do
+    tick
+    xs <- force txs
+    case xs of
+        NilT -> return NilT
+        ConsT ty tys -> do
+            f <- force tf
+            tz <- lazy $ f ty
+            tzs <- lazy $ mapM tf tys
+            return $ ConsT tz tzs
+
