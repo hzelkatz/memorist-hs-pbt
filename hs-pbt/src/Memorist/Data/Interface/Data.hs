@@ -114,3 +114,11 @@ fromPure2' fM x y = do
     tx <- lazy $ reprM x
     y' <- reprM y
     fM tx y'
+
+fromPure3 :: (Memorist s m, Repr a, Repr b, Repr c) =>
+    (Th (Rep a) -> Th (Rep b) -> Th (Rep c) -> m d) -> a -> b -> c -> m d
+fromPure3 fM x y z = do
+    tx <- lazy $ reprM x
+    ty <- lazy $ reprM y
+    tz <- lazy $ reprM z
+    fM tx ty tz

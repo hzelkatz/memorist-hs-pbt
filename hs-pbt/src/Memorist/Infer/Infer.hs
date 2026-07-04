@@ -19,6 +19,11 @@ calcCost :: Demand a => Annotated a -> Dem a -> Cost
 calcCost x d = sumcost s `cplus` costAnnot x
     where s = usage (value x) d `union` usageAnnot x
 
+
+-- TODO: it seems we only used forAllDemand'.
+-- I'm using its defintion but with the name "forAllDemand" in paper right now;
+-- remove the non-used version and update the name here if confirmed.
+
 -- The interface allows one to specify the cost bound in terms of result and demand
 -- as well.
 -- But for results, one works directly with the pure type instead of the Memorist types
@@ -81,8 +86,8 @@ lowerboundby = compSpecAllDemandBy (>=)
 
 -- | A property specifying the cost under the specific demand exactly equals to
 -- the given cost description.
-exactlyWith :: (Demand a, Real n, Memorist s m) =>
-    m a -> (a -> Dem a) -> (a ->Dem a -> n) -> Bool
+exactlyWith :: (Demand a, Integral n, Memorist s m) =>
+    m a -> (a -> Dem a) -> (a -> Dem a -> n) -> Bool
 exactlyWith = compSpecWithDemandBy (==)
 
 -- exactlyWithSt :: (Demand a, Real n, Memorist s m) =>

@@ -114,8 +114,8 @@ instance Arbitrary1 ThD where
     liftShrink _   Skip     = []
 
 instance Arbitrary a => Arbitrary (ThD a) where
-  arbitrary = arbitrary1
-  shrink = shrink1
+    arbitrary = arbitrary1
+    shrink = shrink1
 
 arbitraryWrap :: a -> Gen (ThD a)
 arbitraryWrap x = do
@@ -184,6 +184,7 @@ instance DemandArb a => DemandArb (Th a) where
         x' <- arbDemandFrom $ tval t
         arbitraryWrap x'
 
+-- NOTE: not used currently
 arbDemandM :: (Memorist s m, DemandArb a) => m a -> Gen (Dem a)
 arbDemandM m = arbDemandFrom $ value $ eval m $ initstate
 
