@@ -39,6 +39,8 @@ onetick = Cost 1
 toInteger :: Cost -> Integer
 toInteger (Cost n) = n
 
+showInteger :: Cost -> String
+showInteger = show . toInteger
 
 data NameCost = NameCost { ncname :: ThName, nccost :: Cost }
     deriving (Eq, Ord, Show)

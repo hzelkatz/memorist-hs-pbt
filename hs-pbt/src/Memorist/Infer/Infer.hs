@@ -47,8 +47,8 @@ forAllDemand' x pf = QC.forAll (arbDemandFrom (value x)) pf'
 -- values and/or concrete demand, so that we can avoid running the monad more than once.
 
 -- | A property specifying the upper bound of cost with specific demand.
-upperboundWith :: (Demand a, Real n, Memorist s m) =>
-    m a -> (a -> Dem a) -> (a -> Dem a -> n) -> Bool
+upperboundWith :: (Demand a, Real n, Show n, Memorist s m) =>
+    m a -> (a -> Dem a) -> (a -> Dem a -> n) -> QC.Property
 upperboundWith = compSpecWithDemandBy (<=)
 
 -- | A property specifying the upper bound of cost with specific demand.
@@ -58,7 +58,7 @@ upperboundWith = compSpecWithDemandBy (<=)
 -- upperboundWithSt = compSpecWithDemandBySt (<=)
 
 -- | A property specifying the upper bound of cost under all possible demand on the resulting value.
-upperboundby :: (DemandArb a, Real n, Memorist s m) =>
+upperboundby :: (DemandArb a, Real n, Show n, Memorist s m) =>
     m a -> (a -> Dem a -> n) -> QC.Property
 upperboundby = compSpecAllDemandBy (<=)
 
@@ -67,8 +67,8 @@ upperboundby = compSpecAllDemandBy (<=)
 -- upperboundbySt = compSpecAllDemandBySt (<=)
 
 -- | A property specifying the lower bound of cost with specific demand.
-lowerboundWith :: (Demand a, Real n, Memorist s m) =>
-    m a -> (a -> Dem a) -> (a -> Dem a -> n) -> Bool
+lowerboundWith :: (Demand a, Real n, Show n, Memorist s m) =>
+    m a -> (a -> Dem a) -> (a -> Dem a -> n) -> QC.Property
 lowerboundWith = compSpecWithDemandBy (>=)
 
 -- lowerboundWithSt :: (Demand a, Real n, Memorist s m) =>
@@ -76,7 +76,7 @@ lowerboundWith = compSpecWithDemandBy (>=)
 -- lowerboundWithSt = compSpecWithDemandBySt (>=)
 
 -- | A property specifying the lower bound of cost under all possible demand on the resulting value.
-lowerboundby :: (DemandArb a, Real n, Memorist s m) =>
+lowerboundby :: (DemandArb a, Real n, Show n, Memorist s m) =>
     m a -> (a -> Dem a -> n) -> QC.Property
 lowerboundby = compSpecAllDemandBy (>=)
 
@@ -86,8 +86,8 @@ lowerboundby = compSpecAllDemandBy (>=)
 
 -- | A property specifying the cost under the specific demand exactly equals to
 -- the given cost description.
-exactlyWith :: (Demand a, Integral n, Memorist s m) =>
-    m a -> (a -> Dem a) -> (a -> Dem a -> n) -> Bool
+exactlyWith :: (Demand a, Integral n, Show n, Memorist s m) =>
+    m a -> (a -> Dem a) -> (a -> Dem a -> n) -> QC.Property
 exactlyWith = compSpecWithDemandBy (==)
 
 -- exactlyWithSt :: (Demand a, Real n, Memorist s m) =>
@@ -96,7 +96,7 @@ exactlyWith = compSpecWithDemandBy (==)
 
 -- | A variant of 'exactly' where the cost property is not specified in
 -- terms of the output value.
-exactly :: (DemandArb a, Integral n, Memorist s m) =>
+exactly :: (DemandArb a, Integral n, Show n, Memorist s m) =>
     m a -> (a -> Dem a -> n) -> QC.Property
 exactly = compSpecAllDemandBy (==)
 
@@ -117,8 +117,8 @@ compareOnSame m m' comp =
 
 -- Helpers.
 
-compSpecWithDemandBy :: (Demand a, Num n, Memorist s m) =>
-    (n -> n -> Bool) -> m a -> (a -> Dem a) -> (a -> Dem a -> n) -> Bool
+compSpecWithDemandBy :: (Demand a, Memorist s m, Num n, Show n) =>
+    (n -> n -> Bool) -> m a -> (a -> Dem a) -> (a -> Dem a -> n) -> QC.Property
 compSpecWithDemandBy comp m df pf = compSpecWithDemandBy' comp res d $ pf v
     where res = eval m initstate
           v = value res
@@ -143,12 +143,12 @@ compSpecWithDemandBy comp m df pf = compSpecWithDemandBy' comp res d $ pf v
 -- in terms of (pure) value v and the demand d,
 -- compare the derived computation cost against the cost description
 -- constructed using pf, using the comparator `comp`.
-compSpecWithDemandBy' :: (Demand a, Num n) =>
-    (n -> n -> Bool) -> Annotated a -> Dem a -> (Dem a -> n) -> Bool
-compSpecWithDemandBy' comp x d pf = compareCost' comp c $ pf d
+compSpecWithDemandBy' :: (Demand a, Num n, Show n) =>
+    (n -> n -> Bool) -> Annotated a -> Dem a -> (Dem a -> n) -> QC.Property
+compSpecWithDemandBy' comp x d pf = compareCostTo comp c $ pf d
     where c = calcCost x d
 
-compSpecAllDemandBy :: (DemandArb a, Num n, Memorist s m) =>
+compSpecAllDemandBy :: (DemandArb a, Memorist s m, Num n, Show n) =>
     (n -> n -> Bool) -> m a -> (a -> Dem a -> n) -> QC.Property
 compSpecAllDemandBy comp m pf = compSpecAllDemandBy' comp res $ pf $ value res
     where res = eval m initstate
@@ -172,10 +172,16 @@ compSpecAllDemandBy comp m pf = compSpecAllDemandBy' comp res $ pf $ value res
 -- constructed using pf, using the comparator `comp`.
 -- That is, it is a generalization of 'compSpecWithDemandBy' to
 -- any possible demand on the value resluting from running the computation.
-compSpecAllDemandBy' :: (DemandArb a, Num n) =>
+compSpecAllDemandBy' :: (DemandArb a, Num n, Show n) =>
     (n -> n -> Bool) -> Annotated a -> (Dem a -> n) -> QC.Property
 compSpecAllDemandBy' comp x pf =
-    forAllDemand' x $ \d c -> compareCost' comp c $ pf d
+    forAllDemand' x $ \d c -> compareCostTo comp c $ pf d
 
-compareCost' :: Num n => (n -> n -> Bool) -> Cost -> n -> Bool 
-compareCost' comp c pc = fromIntegral (MT.toInteger c) `comp` pc
+compareCostTo :: (Num n, Show n) => (n -> n -> Bool) -> Cost -> n -> QC.Property
+compareCostTo comp c pc =
+    QC.counterexample ("Computed cost: " ++ showInteger c ++ "; Intended: " ++ show pc) $
+    compCost comp c pc
+
+compCost :: Num n => (n -> n -> Bool) -> Cost -> n -> Bool 
+compCost comp c pc = fromIntegral (MT.toInteger c) `comp` pc
+

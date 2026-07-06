@@ -4,7 +4,7 @@ import Memorist.Memorist as M
 import Memorist.Data.List
 import Memorist.Example.Util
 import Test.QuickCheck as QC
-    ( quickCheck, Property, Arbitrary, NonEmptyList(getNonEmpty), (.&&.), (.||.), (==>), disjoin )
+    ( quickCheck, Property, Arbitrary, NonEmptyList(getNonEmpty), (.&&.), (.||.), (==>), noShrinking )
 
 import Prelude hiding (mapM)
 
@@ -40,7 +40,7 @@ appendM txs tys = do
             tzs <- lazy $ appendM txs' tys
             return $ ConsT tx tzs
 
-{-
+-- An incorrect attempt (off by 1)
 prop_appendBoundAttempt :: ReprDemandArb a => [a] -> [a] -> Property
 prop_appendBoundAttempt xs ys =
     (m `upperboundby` \_ _ -> length xs) .&&.
@@ -49,8 +49,8 @@ prop_appendBoundAttempt xs ys =
 
 qc_appendBoundAttempt :: IO ()
 qc_appendBoundAttempt = quickCheck (prop_appendBoundAttempt :: [Int] -> [Int] -> Property)
--}
 
+-- Correctly specified
 prop_appendBound :: ReprDemandArb a => [a] -> [a] -> Property
 prop_appendBound xs ys =
     (m `upperboundby` \_ _ -> length xs + 1) .&&.
@@ -204,16 +204,14 @@ reverseNaiveM txs = do
 
 -- The naïve implementation is known to belong to O(n^2).
 
-prop_reverseNaiveCostFail :: ReprDemandArb a => [a] -> QC.Property
-prop_reverseNaiveCostFail xs =
-    fromPure1 reverseNaiveM xs `upperboundby` \_ _ -> 2 * (length xs + 1)
-
+-- We try the linear bound first, which should usually be falsified
 qcN_reverseNaiveCostFail :: Int -> IO ()
-qcN_reverseNaiveCostFail n = quickCheckN n (prop_reverseNaiveCostFail :: [Int] -> QC.Property)
+qcN_reverseNaiveCostFail n = quickCheckN n $ \(xs :: [Int]) ->
+    fromPure1 reverseNaiveM xs `upperboundby` \_ _ -> 5 * (length xs + 10)
 
--- NOTE: compact version
-qc_reverseNaiveCostFail :: IO ()
-qc_reverseNaiveCostFail = quickCheck $ \(xs :: [Int]) ->
+-- Tests without shrinking sometimes provide more interesting counterexamples
+qcN_reverseNaiveCostFail' :: Int -> IO ()
+qcN_reverseNaiveCostFail' n = quickCheckN n $ noShrinking $ \(xs :: [Int]) ->
     fromPure1 reverseNaiveM xs `upperboundby` \_ _ -> 2 * (length xs + 1)
 
 -- This is the upper bound on its computation cost
@@ -402,9 +400,8 @@ ttt2a = cost_concatM ([[0,0,0,0],[0,0,0,0],[0],[0,0]]::[[Int]]) $ \_ -> ConsD (N
 ttt2b = cost_concatM' ([[0,0,0,0],[0,0,0,0],[0],[0,0]]::[[Int]]) $ \_ -> ConsD (Need 0) (Need (ConsD (Need 0) (Need (ConsD (Need 0) (Need (ConsD (Need 0) Skip))))))
 
 -- this will likely be falsified: the fold version of concat is nonlinear.
-qcN_concatM'BoundWrong :: Int -> Int -> IO ()
-qcN_concatM'BoundWrong k n = quickCheckN n $ \(xss :: [[Int]]) ->
-    length (concat xss) > k ==>
+qcN_concatM'BoundWrong :: Int -> IO ()
+qcN_concatM'BoundWrong n = quickCheckN n $ \(xss :: [[Int]]) ->
     fromPure1 concatM' xss `upperboundby` \_ d -> 2 * (sizeD 1 d + length xss) + 1
 
 -- NOTE: alternative bound not in paper; also falsified

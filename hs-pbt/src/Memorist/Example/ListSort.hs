@@ -4,8 +4,7 @@ module Memorist.Example.ListSort where
 import Memorist.Memorist as M
 import Memorist.Data.List
 import Memorist.Example.Util
-import Test.QuickCheck as QC ( quickCheck, Property, SortedList (..) )
-import Data.List (sort)
+import Test.QuickCheck as QC ( quickCheck, Property, SortedList (..), noShrinking )
 
 -- insertion sort
 
@@ -52,7 +51,7 @@ qcN_insertUBound n = quickCheckN n $ \(x::Int) (xs::[Int]) ->
 qcN_insertionSortBoundWrong :: Int -> IO ()
 qcN_insertionSortBoundWrong k = quickCheckN k $ \(xs :: [Int]) ->
     fromPure1 insertionSortM xs `upperboundby`
-        \_ _ -> let n = fromIntegral (length xs) in n * logBase 2 (max 1 n)
+        \_ _ -> let n = fromIntegral (length xs) in n * logBase 2 (max 1 n) + 1
 
 -- We can give, e.g., the following upper bound on the computation cost in the worst case.
 -- This bound is not the tightest possible but intuitive enough.
@@ -278,7 +277,7 @@ qcN_mergesortUBound n = quickCheckN n prop_mergesortUBound
 -- as well as collect and comupte cost agaist the full result list which takes
 -- more time in general, and forcing the computation to be fully performed as well.
 --
-prop_mergesortUBound' :: [Int] -> Bool
+prop_mergesortUBound' :: [Int] -> Property
 prop_mergesortUBound' xs = fromPure1 (mergesortM compare) xs `upperboundWith` fullDemand
     $ \_ _ -> n * logBase 2 (max 1 n)
     where n = fromIntegral (length xs) :: Double

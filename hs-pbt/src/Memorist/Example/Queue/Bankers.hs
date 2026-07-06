@@ -197,7 +197,7 @@ qcN_bankersDeqAmortized n = quickCheckN n $ \q -> prop_bankersAmortized q (Deq :
 -- One slight issue with using fullDemand: it is much slower than using QuickCheck's
 -- 'forAll' combinator on all possible demand generated based on resulting value.
 
-prop_bankersAmortized1 :: ReprDemand a => BankersQueue a -> Op a -> Int -> Bool
+prop_bankersAmortized1 :: ReprDemand a => BankersQueue a -> Op a -> Int -> Property
 prop_bankersAmortized1 q op k =
     runOpFromPure q op `upperboundWith` fullDemand $ \v _ -> k + delta v
     where delta (Just q') = potential q' - potential q
@@ -211,31 +211,31 @@ qcN_bankersDeqAmortized1 n = quickCheckN n $ \q -> prop_bankersAmortized1 q (Deq
 
 
 -- A simple test that the cost is constant if amortized over the entire trace.
-prop_bankersRunTraceCost :: ReprDemandArb a => Trace1 a -> Bool
+prop_bankersRunTraceCost :: ReprDemandArb a => Trace1 a -> Property
 prop_bankersRunTraceCost t =
     runTraceFromPure (Q.empty :: BankersQueue a) t `upperboundWith` minDemand $ \_ _ -> 4 * traceSize t
 
 qcN_bankersRunTraceCost :: Int -> IO ()
-qcN_bankersRunTraceCost n = quickCheckN n (prop_bankersRunTraceCost :: Trace1 Int -> Bool)
+qcN_bankersRunTraceCost n = quickCheckN n (prop_bankersRunTraceCost :: Trace1 Int -> Property)
 
 -- Variant that starts with arbitrary queue.
-prop_bankersRunTraceCost' :: ReprDemandArb a => BankersQueue a -> Trace1 a -> Bool
+prop_bankersRunTraceCost' :: ReprDemandArb a => BankersQueue a -> Trace1 a -> Property
 prop_bankersRunTraceCost' q t =
     runTraceFromPure q t `upperboundWith` minDemand $ \_ _ -> 4 * traceSize t
 
 qcN_bankersRunTraceCost' :: Int -> IO ()
-qcN_bankersRunTraceCost' n = quickCheckN n (prop_bankersRunTraceCost' :: BankersQueue Int -> Trace1 Int -> Bool)
+qcN_bankersRunTraceCost' n = quickCheckN n (prop_bankersRunTraceCost' :: BankersQueue Int -> Trace1 Int -> Property)
 
 -- Fixed to full demand. NOTE: just for experiment; this does not hold in general.
 -- Asking for "full demand" actually violates the queue interface where elements
 -- are only accessed via dequque operation.
-prop_bankersRunTraceCost1 :: ReprDemandArb a => Trace1 a -> Bool
+prop_bankersRunTraceCost1 :: ReprDemandArb a => Trace1 a -> Property
 prop_bankersRunTraceCost1 t =
     runTraceFromPure (Q.empty :: BankersQueue a) t `upperboundWith` fullDemand $
         \_ _ -> 4 * traceSize t
 
 qcN_bankersRunTraceCost1 :: Int -> IO ()
-qcN_bankersRunTraceCost1 n = quickCheckN n (prop_bankersRunTraceCost1 :: Trace1 Int -> Bool)
+qcN_bankersRunTraceCost1 n = quickCheckN n (prop_bankersRunTraceCost1 :: Trace1 Int -> Property)
 
 -- -----------------------------------------------------------------------------
 
