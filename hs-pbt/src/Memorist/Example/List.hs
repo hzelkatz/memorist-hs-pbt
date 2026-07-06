@@ -381,6 +381,7 @@ qcN_concatMBound :: Int -> IO ()
 qcN_concatMBound n = quickCheckN n $ \(xss :: [[Int]]) ->
     fromPure1 concatM xss `upperboundby` \_ d -> 2 * (sizeD 1 d + length xss) + 1
 
+-- NOTE: alternative specification not in paper
 qcN_concatMBound' :: Int -> IO ()
 qcN_concatMBound' n = quickCheckN n $ \(xss :: [[Int]]) ->
     fromPure1 concatM xss `upperboundby` \_ _ -> 2 * length xss + length (concat xss) + 2
@@ -395,25 +396,30 @@ concatM' txs = do
 cost_concatM' :: ReprDemand a => [[a]] -> (Rep [a] -> Dem (Rep [a])) -> Cost
 cost_concatM' xss = infcost (fromPure1 concatM' xss)
 
-qcN_concatM'Bound :: Int -> IO ()
-qcN_concatM'Bound n = quickCheckN n $ \(xss :: [[Int]]) ->
+ttt1a = cost_concatM ([[0,0],[],[0,0],[0,0]]::[[Int]]) $ \_ -> ConsD (Need 0) (Need (ConsD Skip (Need (ConsD (Need 0) Skip))))
+ttt1b = cost_concatM' ([[0,0],[],[0,0],[0,0]]::[[Int]]) $ \_ -> ConsD (Need 0) (Need (ConsD Skip (Need (ConsD (Need 0) Skip))))
+ttt2a = cost_concatM ([[0,0,0,0],[0,0,0,0],[0],[0,0]]::[[Int]]) $ \_ -> ConsD (Need 0) (Need (ConsD (Need 0) (Need (ConsD (Need 0) (Need (ConsD (Need 0) Skip))))))
+ttt2b = cost_concatM' ([[0,0,0,0],[0,0,0,0],[0],[0,0]]::[[Int]]) $ \_ -> ConsD (Need 0) (Need (ConsD (Need 0) (Need (ConsD (Need 0) (Need (ConsD (Need 0) Skip))))))
+
+-- this will likely be falsified: the fold version of concat is nonlinear.
+qcN_concatM'BoundWrong :: Int -> Int -> IO ()
+qcN_concatM'BoundWrong k n = quickCheckN n $ \(xss :: [[Int]]) ->
+    length (concat xss) > k ==>
     fromPure1 concatM' xss `upperboundby` \_ d -> 2 * (sizeD 1 d + length xss) + 1
 
-qcN_concatM'Bound' :: Int -> IO ()
-qcN_concatM'Bound' n = quickCheckN n $ \(xss :: [[Int]]) ->
+-- NOTE: alternative bound not in paper; also falsified
+qcN_concatM'BoundWrong' :: Int -> IO ()
+qcN_concatM'BoundWrong' n = quickCheckN n $ \(xss :: [[Int]]) ->
     fromPure1 concatM' xss `upperboundby` \_ _ -> 2 * length xss + length (concat xss) + 2
+
+qcN_concatM'Bound :: Int -> IO ()
+qcN_concatM'Bound n = quickCheckN n $ \(xss :: [[Int]]) ->
+    fromPure1 concatM' xss `upperboundby` \_ d -> (sizeD 1 d + 1) * (length xss + 1)
 
 -- qcN_concatM'LBound :: Int -> IO ()
 -- qcN_concatM'LBound n = quickCheckN n $ \(xss :: [[Int]]) ->
 --     disjoin $ replicate 10 $
 --     fromPure1 concatM' xss `lowerboundby` \_ d -> sizeD 1 d * sizeD 1 d
-
--- ttt1 = (cost_concatM' xss (\_ -> d), 2 * length xss + length (concat xss) + 2)
---     where xss = [[0],[],[]] :: [[Int]]
---           d = ConsD (Need 0) (Need NilD)
--- -- 10, 9
-
--- The example is not very informative though!
 
 -- NOTE: Testing with larger constants;
 -- Eg. 2 * (length xss + length (concat xss)) + 8
@@ -428,8 +434,7 @@ qcN_concatM'Bound' n = quickCheckN n $ \(xss :: [[Int]]) ->
 --           d = ConsD (Need 0) (Need (ConsD (Need 0) (Need (ConsD (Need 0) (Need (ConsD (Need 0) (Need NilD)))))))
 -- -- (25, 16)
 -- Slightly bigger difference but...
--- 
-
+--
 -- For comparison, a handpicked example
 -- let xss = ([[1..20],[2..16],[3..12],[4..8],[5]]::[[Int]]) in (cost_concatM' xss fullDemand, 2 * length xss + length (concat xss) + 2)
 -- -- (162,63)
@@ -452,3 +457,183 @@ mapM tf txs = do
             tzs <- lazy $ mapM tf tys
             return $ ConsT tz tzs
 
+-- NOTE: fusion examples including the mapSucc one should all work even
+-- after -O2 optimized compilation since the optimization does not
+-- optimize through monadic definitions afaik.
+-- This means we can actually use this framework to compare fused vs unfused directly,
+-- although obviously the underlying program (the unfused version) will
+-- be less efficient to actually execute.
+
+-- A fusion example: mapSucc
+--      map succ . mapp succ     vs    map (succ . succ)
+-- The former need one more pass over the input list.
+
+mapSuccM1 :: Th (ListT Int) -> MemoristM (ListT Int)
+mapSuccM1 txs = do
+    tick
+    tf <- lazy $ return succM
+    tzs <- lazy $ mapM tf txs
+    mapM tf tzs
+
+mapSuccM2 :: Th (ListT Int) -> MemoristM (ListT Int)
+mapSuccM2 txs = do
+    tick
+    tf <- lazy $ composeM succM succM
+    mapM tf txs
+
+succM :: Th Int -> MemoristM Int
+succM tn = do
+    tick
+    n <- force tn
+    return $ n + 1
+
+-- mapSuccCost :: [Int] -> (Cost,Cost)
+-- mapSuccCost xs = (infcost (fromPure1 mapSuccM1 xs) fullDemand, infcost (fromPure1 mapSuccM2 xs) fullDemand)
+
+{-
+    concatMap :: (a -> [b]) -> [a] -> [b]
+    concatMap f = foldr ((++) . f) []
+-}
+concatMapM :: Th (Th a -> MemoristM (ListT b)) -> Th (ListT a) -> MemoristM (ListT b)
+concatMapM tf txs = do
+    tick
+    f <- force tf
+    g <- return $ curryKM $ appendM
+    k <- composeM g f
+    tk <- lazy $ return $ uncurryKM k
+    tn <- lazy $ return NilT
+    foldrM tk tn txs
+
+{-
+    concatMap' :: (a -> [b]) -> [a] -> [b]
+    concatMap' f xs = concat $ map f xs
+-}
+concatMapM' :: Th (Th a -> MemoristM (ListT b)) -> Th (ListT a) -> MemoristM (ListT b)
+concatMapM' tf txs = do
+    tick
+    tys <- lazy $ mapM tf txs
+    concatM tys
+
+singletonM :: Th a -> MemoristM (ListT a)
+singletonM tx = do
+    tick
+    tn <- lazy $ return NilT
+    return $ ConsT tx tn
+
+cmsM1 :: Th (ListT a) -> MemoristM (ListT a)
+cmsM1 txs = do
+    tf <- lazy $ return singletonM
+    concatMapM tf txs
+
+cmsM2 :: Th (ListT a) -> MemoristM (ListT a)
+cmsM2 txs = do
+    tf <- lazy $ return singletonM
+    concatMapM' tf txs
+
+cmsCost :: [Int] -> (Cost,Cost)
+cmsCost xs = (infcost (fromPure1 cmsM1 xs) fullDemand, infcost (fromPure1 cmsM2 xs) fullDemand)
+
+{-
+    NOTE on the two cms cost:
+    For cmsM1:
+    concat over list of n singletons is ~3n when demanding in full:
+        - foldr over n element lists,
+        - append actually 2n, each elemment in the element list takes 1,
+            but each ([] ++ _) also takes 1, and there happens to
+            be n elements inside inner lists in total *and* n inner lists (thus n of []++_)
+    These above all get "truncated" proportionally if demanded less.
+    Additionally consider applying f (the singleton function) to each element.
+    So ~4n in total; with 1 constant cost to outermost concatMap.
+
+    For cmsM2:
+    Similar, but one additional pass. So ~5n in total.
+-} 
+
+qcN_cmsM1Bound :: Int -> IO ()
+qcN_cmsM1Bound n = quickCheckN n $ \(xs :: [Int]) ->
+    fromPure1 cmsM1 xs `upperboundby` \_ d -> 4 * sizeD 1 d + 1
+
+-- If we test for slightly larger input, we can hope for a more informative counterexample.
+qcN_cmsM2BoundWrong :: Int -> IO ()
+qcN_cmsM2BoundWrong n = quickCheckN n $ \(xs :: [Int]) -> length xs > 10 ==>
+    fromPure1 cmsM2 xs `upperboundby` \_ d -> 4 * sizeD 1 d + 1
+
+qcN_cmsM2Bound :: Int -> IO ()
+qcN_cmsM2Bound n = quickCheckN n $ \(xs :: [Int]) ->
+    fromPure1 cmsM2 xs `upperboundby` \_ d -> 5 * sizeD 1 d + 1
+
+{-
+    filter _ []    = []
+    filter pred (x:xs)
+        | pred x         = x : filter pred xs
+        | otherwise      = filter pred xs
+-}
+filterM :: Th (Th a -> MemoristM Bool) -> Th (ListT a) -> MemoristM (ListT a)
+filterM tf txs = do
+    xs <- force txs
+    case xs of
+        NilT -> return NilT
+        ConsT ty tys -> do
+            f <- force tf
+            zs <- filterM tf tys
+            b <- f ty
+            if b then do
+                tzs <- lazy $ return zs
+                return $ ConsT ty tzs
+            else return zs
+
+{-
+    zipWith :: (a->b->c) -> [a]->[b]->[c]
+    zipWith f = go
+    where
+        go [] _ = []
+        go _ [] = []
+        go (x:xs) (y:ys) = f x y : go xs ys
+    
+    ------>
+    
+    zipWith f [] _ = []
+    zipWith f _ [] = []
+    zipWith f (x:xs) (y:ys) = f x y : zipWith f xs ys
+-}
+zipWithM :: Th (Th a -> Th b -> MemoristM c) -> Th (ListT a) -> Th (ListT b) -> MemoristM (ListT c)
+zipWithM tf txs tys = do
+    xs <- force txs
+    case xs of
+        NilT -> return NilT
+        ConsT tx txs' -> do
+            ys <- force tys
+            case ys of
+                NilT -> return NilT
+                ConsT ty tys' -> do
+                    f <- force tf
+                    tz <- lazy $ f tx ty
+                    tzs <- lazy $ zipWithM tf txs' tys'
+                    return $ ConsT tz tzs
+
+-- TODO: move the functions below elsewhere
+
+{-
+    (.) :: (b -> c) -> (a -> b) -> a -> c
+    (.) f g = \x -> f (g x)
+-}
+-- No ticks for simplicity. Function composition is often inlined anyway.
+composeM :: Memorist s m => (Th b -> m c) -> (Th a -> m b) -> m (Th a -> m c)
+-- composeM f g = return $ \tx -> do
+--     tz <- lazy $ g tx
+--     f tz
+composeM f g = return $ \tx -> lazy (g tx) >>= f
+
+-- A variant that works on thunked functions.
+composeTM :: Memorist s m => Th (Th b -> m c) -> Th (Th a -> m b) -> m (Th a -> m c)
+composeTM tf tg = return $ \tx -> do
+    g <- force tg
+    tz <- lazy $ g tx
+    f <- force tf
+    f tz
+
+curryKM :: Memorist s m => (Th a -> Th b -> m c) -> Th a -> m (Th b -> m c)
+curryKM f = return . f
+
+uncurryKM :: Memorist s m => (Th a -> m (Th b -> m c)) -> Th a -> Th b -> m c
+uncurryKM f = \tx ty -> f tx >>= \g -> g ty
