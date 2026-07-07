@@ -19,6 +19,9 @@ insertionSort (x:xs) = insert x $ insertionSort xs
 insert :: Ord a => a -> [a] -> [a]
 insert x []     = [x]
 insert x (y:ys) = if x <= y then x:(y:ys) else y : insert x ys
+
+-- qcN_insertionSortCorrect n = quickCheckN n $ \(xs :: [Int]) ->
+--     correct (fromPure1 insertionSortM xs) (insertionSort xs)
 -}
 
 insertionSortM :: Ord a => Th (ListT a) -> MemoristM (ListT a)
@@ -188,6 +191,9 @@ merge (x:xs) (y:ys) =
 split :: [a] -> [[a]]
 split [] = []
 split (x:xs) = [x] : split xs
+
+qcN_mergesortCorrect n = quickCheckN n $ \(xs :: [Int]) ->
+    correct (fromPure1 mergesortM xs) (mergesort xs)
 -}
 
 mergesortM :: Ord a => Th (ListT a) -> MemoristM (ListT a)

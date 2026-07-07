@@ -43,6 +43,18 @@ instance Demand Int where
     type Dem Int = Int
     fullDemand = id
 
+instance Demand Integer where
+    type Dem Integer = Integer
+    fullDemand = id
+
+instance Demand Float where
+    type Dem Float = Float
+    fullDemand = id
+
+instance Demand Double where
+    type Dem Double = Double
+    fullDemand = id
+
 -- -----------------------------------------------------------------------------
 
 data MaybeD a = JustD (ThD a) | NothingD
@@ -93,6 +105,9 @@ instance Demand a => LBoundDemand (Th a) where minDemand _ = Skip
 instance LBoundDemand () where minDemand = id
 instance LBoundDemand Bool where minDemand = id
 instance LBoundDemand Int where minDemand = id
+instance LBoundDemand Integer where minDemand = id
+instance LBoundDemand Float where minDemand = id
+instance LBoundDemand Double where minDemand = id
 
 instance Demand a => LBoundDemand (MaybeT a) where
     minDemand (JustT _) = JustD Skip
@@ -165,6 +180,15 @@ instance DemandArb Bool where
 instance DemandArb Int where
     arbDemandFrom = return
 
+instance DemandArb Integer where
+    arbDemandFrom = return
+
+instance DemandArb Float where
+    arbDemandFrom = return
+
+instance DemandArb Double where
+    arbDemandFrom = return
+
 instance DemandArb a => DemandArb (MaybeT a) where
     arbDemandFrom (JustT x) = liftM JustD $ arbDemandFrom x
     arbDemandFrom _          = return NothingD
@@ -193,6 +217,9 @@ class (Repr a, Demand (Rep a)) => ReprDemand a
 instance ReprDemand ()
 instance ReprDemand Bool
 instance ReprDemand Int
+instance ReprDemand Integer
+instance ReprDemand Float
+instance ReprDemand Double
 instance ReprDemand a => ReprDemand (Maybe a)
 instance ReprDemand a => ReprDemand (SMaybe a)
 instance (ReprDemand a, ReprDemand b) => ReprDemand (a,b)
@@ -205,6 +232,9 @@ class (ReprDemand a, DemandArb (Rep a)) => ReprDemandArb a
 instance ReprDemandArb ()
 instance ReprDemandArb Bool
 instance ReprDemandArb Int
+instance ReprDemandArb Integer
+instance ReprDemandArb Float
+instance ReprDemandArb Double
 instance ReprDemandArb a => ReprDemandArb (Maybe a)
 instance ReprDemandArb a => ReprDemandArb (SMaybe a)
 instance (ReprDemandArb a, ReprDemandArb b) => ReprDemandArb (a,b)

@@ -31,6 +31,21 @@ instance Repr Int where
     reprM = return
     abstract = id
 
+instance Repr Integer where
+    type Rep Integer = Integer
+    reprM = return
+    abstract = id
+
+instance Repr Float where
+    type Rep Float = Float
+    reprM = return
+    abstract = id
+
+instance Repr Double where
+    type Rep Double = Double
+    reprM = return
+    abstract = id
+
 -- -----------------------------------------------------------------------------
 
 -- We define Memorist representations for several more built-in datatypes.
@@ -97,9 +112,7 @@ instance (Repr a, Repr b) => Repr (SPair a b) where
 -- =============================================================================
 
 fromPure1 :: (Memorist s m, Repr a) => (Th (Rep a) -> m b) -> a -> m b
-fromPure1 fM x = do
-    tx <- lazy $ reprM x
-    fM tx
+fromPure1 fM x = fM =<< lazy (reprM x)
 
 fromPure2 :: (Memorist s m, Repr a, Repr b) =>
     (Th (Rep a) -> Th (Rep b) -> m c) -> a -> b -> m c

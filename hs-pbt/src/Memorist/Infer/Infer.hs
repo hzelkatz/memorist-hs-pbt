@@ -185,3 +185,8 @@ compareCostTo comp c pc =
 compCost :: Num n => (n -> n -> Bool) -> Cost -> n -> Bool 
 compCost comp c pc = fromIntegral (MT.toInteger c) `comp` pc
 
+
+-- -----------------------------------------------------------------------------
+
+correct :: (Eq a, Repr a) => Memorist s m => m (Rep a) -> a -> Bool
+correct m x = abstract (value (eval m initstate)) == x

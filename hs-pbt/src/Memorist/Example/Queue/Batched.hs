@@ -81,6 +81,12 @@ checkM (BatchedQueueT [] r) = do
     return $ BatchedQueueT r' []
 checkM q = return q
 
+-- -- Correctness:
+-- qcN_batchedEnqCorrect n = quickCheckN n $ \(q :: BatchedQueue Int) (x :: Int) ->
+--     correct (fromPure2 enqueueM q x) (enqueue q x)
+-- qcN_batchedDeqCorrect n = quickCheckN n $ \(q :: BatchedQueue Int) ->
+--     correct (fromPure1 dequeueM q) (dequeue q)
+
 -- We need a Memorist translation of reverse on the strict variant.
 reverseM :: [a] -> MemoristM [a]
 reverseM xs = tick >> revM xs []

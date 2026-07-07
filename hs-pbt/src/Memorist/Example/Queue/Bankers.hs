@@ -114,6 +114,11 @@ checkM q@(BankersQueueT nf tf nr tr) =
         return $ BankersQueueT (nf + nr) tf' 0 tr'
     else return q
 
+-- -- Correctness:
+-- qcN_BankqEnqCorrect n = quickCheckN n $ \(q :: BankersQueue Int) (x :: Int) ->
+--     correct (fromPure2 enqueueM q x) (enqueue q x)
+-- qcN_BankqDeqCorrect n = quickCheckN n $ \(q :: BankersQueue Int) ->
+--     correct (fromPure1 dequeueM q) (dequeue q)
 
 instance Demand a => Demand (BankersQueueT a) where
     type Dem (BankersQueueT a) = (ThD (ListD (Dem a)), ThD (ListD (Dem a)))
