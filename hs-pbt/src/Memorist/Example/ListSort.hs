@@ -4,7 +4,10 @@ module Memorist.Example.ListSort where
 import Memorist.Memorist as M
 import Memorist.Data.List
 import Memorist.Example.Util
-import Test.QuickCheck as QC ( quickCheck, Property, SortedList (..), noShrinking )
+import Memorist.Example.List (takeM , mapM)
+import Test.QuickCheck as QC ( Property, SortedList (..), NonNegative (..), noShrinking )
+
+import Prelude hiding (mapM)
 
 -- insertion sort
 
@@ -187,13 +190,11 @@ split [] = []
 split (x:xs) = [x] : split xs
 -}
 
-mergesortM :: (a -> a -> Ordering) -> Th (ListT a) -> MemoristM (ListT a)
-mergesortM cmp txs = do
-    txss <- lazy $ splitM txs
-    mergeallM cmp txss
+mergesortM :: Ord a => Th (ListT a) -> MemoristM (ListT a)
+mergesortM txs = mergeallM =<< lazy (splitM txs)
 
-mergeallM :: (a -> a -> Ordering) -> Th (ListT (ListT a)) -> MemoristM (ListT a)
-mergeallM cmp txss = do
+mergeallM :: Ord a => Th (ListT (ListT a)) -> MemoristM (ListT a)
+mergeallM txss = do
     xss <- force txss
     case xss of
         -- case []
@@ -205,11 +206,11 @@ mergeallM cmp txss = do
                 NilT -> force tys
                 -- case _
                 _ -> do
-                    tzss <- lazy $ mergepairsM cmp txss
-                    mergeallM cmp tzss
+                    tzss <- lazy $ mergepairsM txss
+                    mergeallM tzss
 
-mergepairsM :: (a -> a -> Ordering) -> Th (ListT (ListT a)) -> MemoristM (ListT (ListT a))
-mergepairsM cmp txss = do
+mergepairsM :: Ord a => Th (ListT (ListT a)) -> MemoristM (ListT (ListT a))
+mergepairsM txss = do
     xss <- force txss
     case xss of
         -- case []
@@ -221,12 +222,12 @@ mergepairsM cmp txss = do
                 NilT -> return xss
                 -- case (_:_:_)
                 ConsT tys' tyss' -> do
-                    tzs <- lazy $ mergeM cmp tys tys'
-                    tzss <- lazy $ mergepairsM cmp tyss'
+                    tzs <- lazy $ mergeM tys tys'
+                    tzss <- lazy $ mergepairsM tyss'
                     return $ ConsT tzs tzss
 
-mergeM :: (a -> a -> Ordering) -> Th (ListT a) -> Th (ListT a) -> MemoristM (ListT a)
-mergeM cmp txs tys = do
+mergeM :: Ord a => Th (ListT a) -> Th (ListT a) -> MemoristM (ListT a)
+mergeM txs tys = do
     xs <- force txs
     ys <- force tys
     case xs of
@@ -238,13 +239,12 @@ mergeM cmp txs tys = do
                     x <- force tx
                     y <- force ty
                     tick    -- tick here to count the comparisons made
-                    case cmp y x of   -- x <= y equivalent to y > x
-                        GT -> do
-                            tzs <- lazy $ mergeM cmp txs' tys
-                            return $ ConsT tx tzs
-                        _ -> do
-                            tzs <- lazy $ mergeM cmp txs tys'
-                            return $ ConsT ty tzs
+                    if x <= y then do
+                        tzs <- lazy $ mergeM txs' tys
+                        return $ ConsT tx tzs
+                    else do
+                        tzs <- lazy $ mergeM txs tys'
+                        return $ ConsT ty tzs
 
 splitM :: Th (ListT a) -> MemoristM (ListT (ListT a))
 splitM txs = do
@@ -263,8 +263,8 @@ splitM txs = do
 -- But in general, we might not be able to easily determine a concrete bound
 -- for a function supposed to be in O(n log n) (although this is also true for
 -- any complexity class).
-prop_mergesortUBound :: [Int] -> QC.Property
-prop_mergesortUBound xs = fromPure1 (mergesortM compare) xs `upperboundby`
+prop_mergesortUBound :: [Int] -> Property
+prop_mergesortUBound xs = fromPure1 mergesortM xs `upperboundby`
     \_ _ -> n * logBase 2 (max 1 n)
     where n = fromIntegral (length xs) :: Double
 
@@ -276,11 +276,15 @@ qcN_mergesortUBound n = quickCheckN n prop_mergesortUBound
 -- But the test will be much slower to run, due to having to generate the demand
 -- as well as collect and comupte cost agaist the full result list which takes
 -- more time in general, and forcing the computation to be fully performed as well.
---
-prop_mergesortUBound' :: [Int] -> Property
-prop_mergesortUBound' xs = fromPure1 (mergesortM compare) xs `upperboundWith` fullDemand
-    $ \_ _ -> n * logBase 2 (max 1 n)
-    where n = fromIntegral (length xs) :: Double
-
 qcN_mergesortUBound' :: Int -> IO ()
-qcN_mergesortUBound' n = quickCheckN n prop_mergesortUBound'
+qcN_mergesortUBound' k = quickCheckN k $ \(xs :: [Int]) ->
+    let n = fromIntegral (length xs) :: Double in
+    fromPure1 mergesortM xs `upperboundWith` fullDemand $
+        \_ _ -> n * logBase 2 (max 1 n)
+
+-- In terms of demand?
+qcN_mergesortUBound'' :: Int -> IO ()
+qcN_mergesortUBound'' k = quickCheckN k $ \(xs :: [Int]) ->
+    let n = fromIntegral (length xs) :: Double in
+    fromPure1 mergesortM xs `upperboundby`
+        \_ d -> n * logBase 2 (max 1 (fromIntegral (sizeD 0 d + 1)))
