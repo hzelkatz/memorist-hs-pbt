@@ -36,6 +36,7 @@ library
         Memorist.Example.Queue.Base
         Memorist.Example.Queue.Bankers
         Memorist.Example.Queue.Batched
+        Memorist.Example.Queue.BatchedLazy
     -- other-modules:
         Memorist.Example.Util
     -- other-extensions:

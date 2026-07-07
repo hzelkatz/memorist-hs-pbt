@@ -14,77 +14,70 @@ import Data.Tree
 import Control.Monad (replicateM_)
 
 
-data BatchedQueue a = BatchedQueue (SList a) (SList a)
+data Batched a = Batched (SList a) (SList a)
     deriving (Eq,Show)
 
-instance Queue BatchedQueue where
-    empty = BatchedQueue (SList []) (SList [])
+instance Queue Batched where
+    empty = Batched (SList []) (SList [])
 
-    enqueue (BatchedQueue f r) x = check $ BatchedQueue f $ SList (x : fromSList r)
+    enqueue (Batched f r) x = check $ Batched f $ SList (x : fromSList r)
 
-    -- dequeue (BatchedQueue [] _) = Nothing
-    -- dequeue (BatchedQueue (x:f) r) = Just (x, check (BatchedQueue f r))
-    dequeue (BatchedQueue (SList []) _) = SMaybe Nothing
-    dequeue (BatchedQueue (SList (x:f)) r) =
-        SMaybe $ Just $ SPair (x, check (BatchedQueue (SList f) r))
+    dequeue (Batched (SList []) _) = SMaybe Nothing
+    dequeue (Batched (SList (x:f)) r) =
+        SMaybe $ Just $ SPair (x, check (Batched (SList f) r))
 
-check :: BatchedQueue a -> BatchedQueue a
-check (BatchedQueue (SList []) (SList r)) = BatchedQueue (SList (reverse r)) (SList [])
+check :: Batched a -> Batched a
+check (Batched (SList []) (SList r)) = Batched (SList (reverse r)) (SList [])
 check q = q
 
-instance Arbitrary a => Arbitrary (BatchedQueue a) where
+instance Arbitrary a => Arbitrary (Batched a) where
     arbitrary = do
         f <- arbitrary
         case f of
-            [] -> return $ BatchedQueue (SList []) (SList [])
-            _ -> do
-                r <- arbitrary
-                return $ BatchedQueue (SList f) r
+            [] -> return $ Batched (SList []) (SList [])
+            _ -> return . Batched (SList f) =<< arbitrary
 
     shrink =
         filter valid . shrinkMap wrap unwrap
-        where unwrap (BatchedQueue (SList f) (SList r)) = (f,r)
-              wrap (f,r) = BatchedQueue (SList f) (SList r)
-              valid (BatchedQueue (SList []) (SList (_:_))) = False
+        where unwrap (Batched (SList f) (SList r)) = (f,r)
+              wrap (f,r) = Batched (SList f) (SList r)
+              valid (Batched (SList []) (SList (_:_))) = False
               valid _                                       = True
 
-
-data BatchedQueueT a = BatchedQueueT [a] [a]
+data BatchedT a = BatchedT [a] [a]
     deriving (Eq,Show)
 
-instance Repr a => Repr (BatchedQueue a) where
-    type Rep (BatchedQueue a) = BatchedQueueT (Rep a)
-    reprM (BatchedQueue f r) = liftA2 BatchedQueueT (reprM f) (reprM r)
-    abstract (BatchedQueueT f r) = BatchedQueue (abstract f) (abstract r)
+instance Repr a => Repr (Batched a) where
+    type Rep (Batched a) = BatchedT (Rep a)
+    reprM (Batched f r) = liftA2 BatchedT (reprM f) (reprM r)
+    abstract (BatchedT f r) = Batched (abstract f) (abstract r)
 
-instance QueueT BatchedQueueT where
-    emptyM = liftA2 BatchedQueueT tn tn where tn = return []
+instance QueueT BatchedT where
+    emptyM = liftA2 BatchedT tn tn where tn = return []
 
     enqueueM tq tx = do
         tick
-        ~(BatchedQueueT f r) <- force tq
+        ~(BatchedT f r) <- force tq
         x <- force tx
-        checkM $ BatchedQueueT f (x:r)
+        checkM $ BatchedT f (x:r)
 
     dequeueM tq = do
         tick
-        ~(BatchedQueueT f r) <- force tq
+        ~(BatchedT f r) <- force tq
         case f of
             [] -> return Nothing
             x:f' -> do
-                q' <- checkM $ BatchedQueueT f' r
+                q' <- checkM $ BatchedT f' r
                 return $ Just (x, q')
 
-checkM :: BatchedQueueT a -> MemoristM (BatchedQueueT a)
-checkM (BatchedQueueT [] r) = do
-    r' <- reverseM r
-    return $ BatchedQueueT r' []
+checkM :: BatchedT a -> MemoristM (BatchedT a)
+checkM (BatchedT [] r) = reverseM r >>= \r' -> return (BatchedT r' [])
 checkM q = return q
 
 -- -- Correctness:
--- qcN_batchedEnqCorrect n = quickCheckN n $ \(q :: BatchedQueue Int) (x :: Int) ->
+-- qcN_batchedEnqCorrect n = quickCheckN n $ \(q :: Batched Int) (x :: Int) ->
 --     correct (fromPure2 enqueueM q x) (enqueue q x)
--- qcN_batchedDeqCorrect n = quickCheckN n $ \(q :: BatchedQueue Int) ->
+-- qcN_batchedDeqCorrect n = quickCheckN n $ \(q :: Batched Int) ->
 --     correct (fromPure1 dequeueM q) (dequeue q)
 
 -- We need a Memorist translation of reverse on the strict variant.
@@ -98,29 +91,26 @@ revM xs ys = do
         []   -> return ys
         x:xs' -> revM xs' (x:ys)
 
--- prop_rev :: [Int] -> Property
--- prop_rev l = reverseM l `exactly` \_ _ -> length l + 2
+instance Demand a => Demand (BatchedT a) where
+    type Dem (BatchedT a) = ([Dem a], [Dem a])
+    fullDemand (BatchedT f r) = (fullDemand f, fullDemand r)
+    usage (BatchedT f r) (df, dr) = usage f df `union` usage r dr
 
-instance Demand a => Demand (BatchedQueueT a) where
-    type Dem (BatchedQueueT a) = ([Dem a], [Dem a])
-    fullDemand (BatchedQueueT f r) = (fullDemand f, fullDemand r)
-    usage (BatchedQueueT f r) (df, dr) = usage f df `union` usage r dr
+instance LBoundDemand a => LBoundDemand (BatchedT a) where
+    minDemand (BatchedT f r) = (minDemand f, minDemand r)
 
--- instance LBoundDemand a => LBoundDemand (BatchedQueueT a) where
---     minDemand (BatchedQueueT f r) = (minDemand f, minDemand r)
-
-instance DemandArb a => DemandArb (BatchedQueueT a) where
-    arbDemandFrom (BatchedQueueT f r) = do
+instance DemandArb a => DemandArb (BatchedT a) where
+    arbDemandFrom (BatchedT f r) = do
         df <- arbDemandFrom f
         dr <- arbDemandFrom r
         return $ (df, dr)
 
 
-instance HasPotential (BatchedQueue)  where
-    potential (BatchedQueue _ (SList r)) = length r
+instance HasPotential (Batched)  where
+    potential (Batched _ (SList r)) = length r
 
-instance HasPotential (BatchedQueueT) where
-    potential (BatchedQueueT _ r) = length r
+instance HasPotential (BatchedT) where
+    potential (BatchedT _ r) = length r
 
 
 -- | Traditionally, amortized analysis considers credits.
@@ -132,7 +122,7 @@ instance HasPotential (BatchedQueueT) where
 -- Equivalently, we want to assert that
 --      actual cost <= k - potential change
 -- for some constant k that is an upper bound on the amortized cost.
-prop_batchedAmortized :: ReprDemandArb a => BatchedQueue a -> Op a -> Int -> Property
+prop_batchedAmortized :: ReprDemandArb a => Batched a -> Op a -> Int -> Property
 prop_batchedAmortized q op k =
     runOpFromPure q op `upperboundby` \v _ -> k - delta v
     where delta (Just q') = potential q' - potential q
@@ -158,32 +148,47 @@ qcN_batchedDeqAmortized :: Int -> IO ()
 qcN_batchedDeqAmortized n = quickCheckN n $ \q -> prop_batchedAmortized q (Deq :: Op Int) 3
 
 
-prop_batchedRunTraceCost' :: (ReprDemandArb a, Trace t) => t a -> Property
-prop_batchedRunTraceCost' t =
-    runTraceFromPure (Q.empty :: BatchedQueue a) t `upperboundby` \_ _ -> 4 * traceSize t
-
-prop_batchedRunSeqCost :: ReprDemandArb a => SeqTrace a -> Property
-prop_batchedRunSeqCost = prop_batchedRunTraceCost'
-
-prop_batchedRunTraceCost :: ReprDemandArb a => LSTrace a -> Property
-prop_batchedRunTraceCost = prop_batchedRunTraceCost'
-
-prop_batchedRunTraceCost1 :: ReprDemandArb a => RanTrace a -> Property
-prop_batchedRunTraceCost1 = prop_batchedRunTraceCost'
+prop_batchedRunTraceCost :: (ReprDemandArb a, LBoundDemand (Rep a), Trace t) => t a -> Property
+prop_batchedRunTraceCost t =
+    runTraceFromPure (Q.empty :: Batched a) t `upperboundWith` minDemand $ \_ _ -> 4 * traceSize t
 
 qcN_batchedRunSeqCost :: Int -> IO ()
-qcN_batchedRunSeqCost n = quickCheckN n (prop_batchedRunSeqCost :: SeqTrace Int -> Property)
+qcN_batchedRunSeqCost n = quickCheckN n (prop_batchedRunTraceCost :: SeqTrace Int -> Property)
 
 -- In principle this does not hold. This trace generator tends to work better with
 -- finding counterexamples for batched queue.
--- Not implementing shrinkers yet so the counterexamples are often ugly.
-qcN_batchedRunTraceCost :: Int -> IO ()
-qcN_batchedRunTraceCost n = quickCheckN n (prop_batchedRunTraceCost :: LSTrace Int -> Property)
+qcN_batchedRunLSTraceCost :: Int -> IO ()
+qcN_batchedRunLSTraceCost n = quickCheckN n (prop_batchedRunTraceCost :: LSTrace Int -> Property)
 
--- In principle this does not hold either but this trace generator is less effective
--- in finding counterexamples.
-qcN_batchedRunTraceCost1 :: Int -> IO ()
-qcN_batchedRunTraceCost1 n = quickCheckN n (prop_batchedRunTraceCost1 :: RanTrace Int -> Property)
+-- This trace generator seems less effective in finding counterexamples.
+qcN_batchedRunRanTraceCost :: Int -> IO ()
+qcN_batchedRunRanTraceCost n = quickCheckN n (prop_batchedRunTraceCost :: RanTrace Int -> Property)
+
+{-
+    One example discovered by qcN_batchedRunLSTraceCost when using abitrary demand
+    
+    *** Failed! Falsified (after 162 tests and 25 shrinks): 
+    (Node {rootLabel = Enq 26, subForest = [
+        Node {rootLabel = Enq 53, subForest = [
+            Node {rootLabel = Enq (-3), subForest = [
+                Node {rootLabel = Enq (-10), subForest = [
+                    Node {rootLabel = Deq, subForest = []},
+                    Node {rootLabel = Deq, subForest = []},
+                    Node {rootLabel = Deq, subForest = []},
+                    Node {rootLabel = Deq, subForest = []},
+                    Node {rootLabel = Deq, subForest = []}]}]}]}]})
+    [([26],[]),([26],[53]),([26],[-3,53]),([26],[-10,-3,53]),([53,-3,-10],[]),([53,-3,-10],[]),([53,-3,-10],[]),([53,-3,-10],[]),([53,-3,-10],[])]
+    Computed cost: 37; Intended: 36
+
+    One example discovered by qcN_batchedRunLSTraceCost using minDemand
+
+    *** Failed! Falsified (after 85 tests and 38 shrinks):      
+    (but with a very large trace)
+    Computed cost: 144; Intended: 140
+
+    There is also a run of qcN_batchedRunLSTraceCost discovering a small example,
+    but this tends to be rarer? But why?
+-}
 
 -- -----------------------------------------------------------------------------
 
@@ -199,12 +204,12 @@ batch_batched k j = replicateM_ j $
 
 
 qctesttracebatched :: Trace t => t Int -> IO ()
-qctesttracebatched t = quickCheckN 1 $ prop_batchedRunTraceCost' t
+qctesttracebatched t = quickCheckN 1 $ prop_batchedRunTraceCost t
 
-tracecostbatched :: Trace t => BatchedQueue Int -> t Int -> Cost
+tracecostbatched :: Trace t => Batched Int -> t Int -> Cost
 tracecostbatched q t = infcost (runTraceFromPure q t) fullDemand
 
-q0 :: BatchedQueue Int
+q0 :: Batched Int
 q0 = Q.empty
 
 t10a :: RanTrace Int

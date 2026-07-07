@@ -8,7 +8,7 @@ module Memorist.Example.Queue.Base where
 
 import Memorist.Memorist as M
 
-import Data.List.NonEmpty ( NonEmpty(..) )
+import Data.List.NonEmpty ( NonEmpty(..), fromList, toList )
 import Data.Tree
 import Control.Monad (liftM)
 import Test.QuickCheck as QC 
@@ -26,7 +26,6 @@ import Test.QuickCheck as QC
 class Queue t where
     empty :: t a
     enqueue :: t a -> a -> t a
-    -- dequeue :: t a -> Maybe (a, t a)
     dequeue :: t a -> SMaybe (SPair a (t a))
 
 -- | Interface of Memorist representations of queues
@@ -132,17 +131,28 @@ fromNonEmpty (op :| ops) = Node op $ foldr f [] ops
 flattenToList :: Tree (Op a) -> [Op a]
 flattenToList (Node x ts) = x : concatMap flattenToList ts
 
+-- QuickCheck does not implement Arbitrary for NonEmpty
+-- but has its own NonEmptyList type which we borrow here
+instance Arbitrary a => Arbitrary (NonEmpty a) where
+    arbitrary = fromQCNonEmpty <$> arbitrary
+    shrink = shrinkMap fromQCNonEmpty toQCNonEmpty
+
+fromQCNonEmpty :: NonEmptyList a -> NonEmpty a
+fromQCNonEmpty = fromList . getNonEmpty
+
+toQCNonEmpty :: NonEmpty a -> NonEmptyList a
+toQCNonEmpty = QC.NonEmpty . toList
+
 instance Arbitrary a => Arbitrary (SeqTrace a) where
-    arbitrary = SeqTrace <$> arbNonEmpty arbitrary
+    arbitrary = SeqTrace <$> arbitrary
 
 instance Arbitrary a => Arbitrary (RanTrace a) where
     arbitrary = RanTrace <$> arbitrary
+    shrink (RanTrace t) = map RanTrace $ shrink t
 
 instance Arbitrary a => Arbitrary (LSTrace a) where
     arbitrary = LSTrace <$> sized arbTreeLS
-
-arbNonEmpty :: Gen a -> Gen (NonEmpty a)
-arbNonEmpty gen = (:|) <$> gen <*> listOf gen
+    shrink (LSTrace t) = map LSTrace $ shrink t
 
 arbTreePath :: Arbitrary a => Int -> Tree a -> Gen (Tree a)
 arbTreePath n t | n <= 0 = return t
