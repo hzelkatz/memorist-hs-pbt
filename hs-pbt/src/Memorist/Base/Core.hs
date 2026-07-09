@@ -59,7 +59,6 @@ instance Monad m => Applicative (AnnotT m) where
         xa <- runAnnotT mx
         return $ fa <*> xa
 
-
 instance Monad m => Monad (AnnotT m) where
     m >>= k = AnnotT $ do
         xa <- runAnnotT m

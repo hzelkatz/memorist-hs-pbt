@@ -18,15 +18,11 @@ instance Repr a => Repr [a] where
     type Rep [a] = ListT (Rep a)
 
     reprM [] = return NilT
-    reprM (x:xs) = do
-        tx <- lazy $ reprM x
-        txs <- lazy $ reprM xs
-        return $ ConsT tx txs
+    reprM (x:xs) = ConsT <$> lazy (reprM x) <*> lazy (reprM xs)
 
     abstract NilT = []
     abstract (ConsT tx txs) = abstract (tval tx) : abstract (tval txs)
 
--- not used yet
 sizeT :: Int -> ListT a -> Int
 sizeT n NilT = n
 sizeT n (ConsT _ t) = 1 + sizeT n (tval t)

@@ -179,7 +179,7 @@ compSpecAllDemandBy' comp x pf =
 
 compareCostTo :: (Num n, Show n) => (n -> n -> Bool) -> Cost -> n -> QC.Property
 compareCostTo comp c pc =
-    QC.counterexample ("Computed cost: " ++ showInteger c ++ "; Intended: " ++ show pc) $
+    QC.counterexample ("Computed cost: " ++ showInteger c ++ "; Expected: " ++ show pc) $
     compCost comp c pc
 
 compCost :: Num n => (n -> n -> Bool) -> Cost -> n -> Bool 
