@@ -1,4 +1,5 @@
 -- {-# OPTIONS_GHC -Wno-type-defaults #-}
+
 module Memorist.Example.ListSort where
 
 import Memorist.Memorist as M
@@ -272,8 +273,8 @@ splitM txs = do
             tzss <- lazy $ splitM tys
             return $ ConsT tzs tzss
 
--- NOTE however that we need to specify the bound on concrete cost, and are
--- unable to handle complexity class yet.
+-- We need to specify the bound on concrete cost, which is different from
+-- what it appears in specifications using complexity class.
 -- This bound happens to apply to this mergesort algorithm.
 -- But in general, we might not be able to easily determine a concrete bound
 -- for a function supposed to be in O(n log n) (although this is also true for

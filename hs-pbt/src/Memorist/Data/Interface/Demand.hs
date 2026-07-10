@@ -3,7 +3,6 @@
 module Memorist.Data.Interface.Demand where
 
 import Memorist.Base.Thunk
-import Memorist.Base.Core
 import Memorist.Data.Interface.Data
 import Control.Monad (liftM, liftM2)
 import Test.QuickCheck (Gen, Arbitrary (..), Arbitrary1 (..), Arbitrary2 (..)

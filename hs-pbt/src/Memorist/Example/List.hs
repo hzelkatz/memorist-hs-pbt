@@ -32,7 +32,7 @@ qc_headCost = quickCheck $ \(xs :: NonEmptyList Int) ->
 -}
 tailM :: Th (ListT a) -> MemoristM (ListT a)
 tailM txs = do
-    -- tick
+    tick
     xs <- force txs
     case xs of
         NilT -> error "empty list"
@@ -138,6 +138,8 @@ takeM tn txs = do
                 return $ ConsT ty tzs
     else return NilT
 
+-- Both bounds should hold:
+
 qc_takeBound :: IO ()
 qc_takeBound = quickCheck (prop :: Int -> [Int] -> QC.Property)
     where prop n xs = fromPure2 takeM n xs `upperboundby` \_ _ -> max 1 (n + 1)
@@ -212,7 +214,7 @@ reverseNaiveM txs = do
 -- We try the linear bound first, which should usually be falsified
 qcN_reverseNaiveCostFail :: Int -> IO ()
 qcN_reverseNaiveCostFail n = quickCheckN n $ \(xs :: [Int]) ->
-    fromPure1 reverseNaiveM xs `upperboundby` \_ _ -> 5 * (length xs + 10)
+    fromPure1 reverseNaiveM xs `upperboundby` \_ _ -> 2 * (length xs + 1)
 
 -- Tests without shrinking sometimes provide more interesting counterexamples
 qcN_reverseNaiveCostFail' :: Int -> IO ()
@@ -280,6 +282,9 @@ repeatM tx = do
 prop_repeatCost :: ReprDemandArb a => a -> QC.Property
 prop_repeatCost x = fromPure1 repeatM x `exactly` \_ d -> sizeD 1 d
 
+-- This should run fine and typically pass all tests.
+-- 
+-- However, caution is needed.
 -- Computation of repeatM itself can go on indefinitely when demanded in full:
 -- try running and printing
 --      eval (fromPure1 repeatM True) initstate
@@ -292,13 +297,10 @@ prop_repeatCost x = fromPure1 repeatM x `exactly` \_ d -> sizeD 1 d
 -- 
 -- In principle it may be possible for it to keep generating demand needing the next thunk,
 -- i.e. a 'potentially infinite demand', though we have not observed this in practice.
--- Even if it is possible, it is very unlikely anyway. But caution is still needed.
+-- Generally speaking, even if it is possible, it should be very unlikely.
 qc_repeatCost :: Int -> IO ()
 qc_repeatCost n = quickCheckN n (prop_repeatCost :: Int -> QC.Property)
 
--- Obviously, it also works with the replicate function below, since the
--- 'take n' function always demand a finite portion from the result of 'repeat'
--- under lazy evaluation.
 
 -- replicate
 {-
@@ -390,7 +392,7 @@ qcN_concatMBound :: Int -> IO ()
 qcN_concatMBound n = quickCheckN n $ \(xss :: [[Int]]) ->
     fromPure1 concatM xss `upperboundby` \_ d -> 2 * (sizeD 1 d + length xss) + 1
 
--- NOTE: alternative specification not in paper
+-- Alternative specification not in paper
 qcN_concatMBound' :: Int -> IO ()
 qcN_concatMBound' n = quickCheckN n $ \(xss :: [[Int]]) ->
     fromPure1 concatM xss `upperboundby` \_ _ -> 2 * length xss + length (concat xss) + 2
@@ -410,12 +412,12 @@ cost_concatLM xss = infcost (fromPure1 concatLM xss)
 -- ttt2a = cost_concatM ([[0,0,0,0],[0,0,0,0],[0],[0,0]]::[[Int]]) $ \_ -> ConsD (Need 0) (Need (ConsD (Need 0) (Need (ConsD (Need 0) (Need (ConsD (Need 0) Skip))))))
 -- ttt2b = cost_concatLM ([[0,0,0,0],[0,0,0,0],[0],[0,0]]::[[Int]]) $ \_ -> ConsD (Need 0) (Need (ConsD (Need 0) (Need (ConsD (Need 0) (Need (ConsD (Need 0) Skip))))))
 
--- this will likely be falsified: the fold version of concat is nonlinear.
+-- This will likely be falsified: the fold version of concat is nonlinear.
 qcN_concatLMBoundWrong :: Int -> IO ()
 qcN_concatLMBoundWrong n = quickCheckN n $ \(xss :: [[Int]]) ->
     fromPure1 concatLM xss `upperboundby` \_ d -> 2 * (sizeD 1 d + length xss) + 1
 
--- NOTE: alternative bound not in paper; also falsified
+-- Alternative bound not in paper; also falsified
 qcN_concatLMBoundWrong' :: Int -> IO ()
 qcN_concatLMBoundWrong' n = quickCheckN n $ \(xss :: [[Int]]) ->
     fromPure1 concatLM xss `upperboundby` \_ _ -> 2 * length xss + length (concat xss) + 2
@@ -460,6 +462,7 @@ mapMM tf txs = do
             tzs <- lazy $ mapMM tf tys
             return $ ConsT tz tzs
 
+
 -- NOTE: fusion examples including the mapSucc one should all work even
 -- after -O2 optimized compilation since the optimization does not
 -- optimize through monadic definitions afaik.
@@ -470,6 +473,8 @@ mapMM tf txs = do
 -- A fusion example: mapSucc
 --      map succ . mapp succ     vs    map (succ . succ)
 -- The former need one more pass over the input list.
+--
+-- NOTE: no tests yet
 
 mapSuccM1 :: Th (ListT Int) -> MemoristM (ListT Int)
 mapSuccM1 txs = do
@@ -574,6 +579,7 @@ qcN_cmsM2Bound n = quickCheckN n $ \(xs :: [Int]) ->
 -}
 filterM :: Th (Th a -> MemoristM Bool) -> Th (ListT a) -> MemoristM (ListT a)
 filterM tf txs = do
+    tick
     xs <- force txs
     case xs of
         NilT -> return NilT
@@ -602,6 +608,7 @@ filterM tf txs = do
 -}
 zipWithM :: Th (Th a -> Th b -> MemoristM c) -> Th (ListT a) -> Th (ListT b) -> MemoristM (ListT c)
 zipWithM tf txs tys = do
+    tick
     xs <- force txs
     case xs of
         NilT -> return NilT

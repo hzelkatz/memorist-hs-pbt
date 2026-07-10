@@ -1,5 +1,4 @@
 {-# LANGUAGE TypeFamilies #-}
--- {-# LANGUAGE TypeOperators #-}
 
 module Memorist.Example.Queue.Bankers where
 

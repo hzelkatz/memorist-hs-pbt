@@ -154,6 +154,7 @@ prop_batchedRunTraceCost :: (ReprDemandArb a, LBoundDemand (Rep a), Trace t) => 
 prop_batchedRunTraceCost t =
     runTraceFromPure (Q.empty :: Batched a) t `upperboundWith` minDemand $ \_ _ -> 4 * traceSize t
 
+-- This should hold: it is a nonbranching sequence of operators (i.e. no persistent usage).
 qcN_batchedRunSeqCost :: Int -> IO ()
 qcN_batchedRunSeqCost n = quickCheckN n (prop_batchedRunTraceCost :: SeqTrace Int -> Property)
 

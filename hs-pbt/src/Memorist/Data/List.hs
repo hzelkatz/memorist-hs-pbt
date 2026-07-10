@@ -74,14 +74,6 @@ instance Arbitrary a => Arbitrary (ListD a) where
         genListD' k
     shrink = shrinkListD
 
-{-
-instance DemandArb a b => DemandArb (ListT a) (ListD b) where
-    arbDemandFrom NilT = return NilD
-    arbDemandFrom (ConsT tx txs) = do
-        dx <- arbDemandFrom tx
-        dxs <- arbDemandFrom txs
-        return $ ConsD dx dxs
--}
 instance DemandArb a => DemandArb (ListT a) where
     arbDemandFrom NilT = return NilD
     arbDemandFrom (ConsT tx txs) = do

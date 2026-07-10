@@ -2,7 +2,7 @@
 
 This artifact, accompanying the paper "QuickChecking the Cost of Laziness over Infinite Structures",
 contains a QuickCheck-based property-based testing framework implemented in Haskell for testing specifications about lazy evaluation cost of functions and programs.
-It also contains several case studies, such as some common first- and higher-order list functions (including the `replicate` function that works on potentially infinite lists), the insertion sort and merge sort algorithms, the batched queue and Okasaki's banker's queue.
+It also contains several case studies, such as some common first- and higher-order list functions (also including the `replicate` function that works on potentially infinite lists), the insertion sort and merge sort algorithms, the batched queue and Okasaki's banker's queue, and an infinite-list based implementation of NewtonRaphson approximation.
 
 
 ## Getting Started
@@ -33,10 +33,9 @@ Alternatively, if `cabal` is preferred:
 cabal build
 ```
 
-##  Formalization Dependencies
-
-This implementation is based on a lazy variant of the Memorist Semantics we developed.
-The Memorist Semantics is originally introduced by [Li et al. (2026)](https://doi.org/10.1007/978-3-032-22720-1_17).
+The versions we have used:
+- `stack` version 3.7.1
+- `cabal` (`cabal-install`) version 3.14.2.0
 
 
 ## Directory Structure
@@ -62,7 +61,7 @@ The directory is structured as follows:
       * `Bankers.hs` - Okasaki's banker's queue
       * `Base.hs` - queue interface and traces
       * `Batched.hs` - the batched queue
-      * `BatchedLazy.hs` - the batched queue with lazy lists
+      * `BatchedLazy.hs` - a 'lazy' version of the batched queue
     * `List.hs` - functions on lists
     * `ListSort.hs` - sorting algorithms on lists, including insertion sort and merge sort
     * `NewtonRaphson.hs` - Newton-Raphson approximation
@@ -70,3 +69,10 @@ The directory is structured as follows:
   * `Infer/`
     * `Infer.hs` - lazy cost derivation and testing interface
   * `Memorist.hs` - re-exporting the Memorist monad
+
+
+## References
+
+The framework here is based on a lazy variant of the Memorist Semantics we developed in the paper this artifact accompanies.
+
+The Memorist Semantics is originally introduced by [Li et al. (2026)](https://doi.org/10.1007/978-3-032-22720-1_17).

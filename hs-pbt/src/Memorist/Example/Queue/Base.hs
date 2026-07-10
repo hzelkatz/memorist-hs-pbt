@@ -1,7 +1,3 @@
--- {-# LANGUAGE TypeFamilies #-}
--- {-# LANGUAGE FlexibleInstances #-}
--- {-# LANGUAGE TypeOperators #-}
-
 -- {-# OPTIONS_GHC -Wno-orphans #-}
 
 module Memorist.Example.Queue.Base where

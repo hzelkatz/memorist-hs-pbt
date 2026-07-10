@@ -2,6 +2,7 @@
 -- https://www.cs.kent.ac.uk/people/staff/dat/miranda/whyfp90.pdf
 
 -- {-# OPTIONS_GHC -Wno-incomplete-patterns #-}
+-- {-# OPTIONS_GHC -Wno-type-defaults #-}
 
 module Memorist.Example.NewtonRaphson where
 
@@ -24,7 +25,8 @@ repeatly f a = a : repeatly f (f a)
 -- will give slightly different result (a constant difference of 2?).
 nextM :: Double -> Double -> MemoristM Double
 nextM n x = do
-    tick    -- count # of iterations
+    tick    -- count # of iterations, or rather,
+            -- # of times this action being iterated actually gets executed
     z1 <- return $ n / x
     z2 <- return $ x + z1
     return $ z2 / 2
