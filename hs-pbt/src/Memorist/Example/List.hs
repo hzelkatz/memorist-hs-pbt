@@ -4,7 +4,7 @@ import Memorist.Memorist as M
 import Memorist.Data.List
 import Memorist.Example.Util
 import Test.QuickCheck as QC
-    ( quickCheck, Property, NonEmptyList(getNonEmpty), (.&&.), (.||.), (==>), noShrinking )
+    ( quickCheck, Property, NonEmptyList(getNonEmpty), (.&&.), (==>), noShrinking )
 
 import Prelude hiding (mapM)
 

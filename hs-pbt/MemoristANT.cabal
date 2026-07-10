@@ -1,5 +1,5 @@
 cabal-version:      3.0
-name:               hs-pbt
+name:               MemoristANT
 version:            0.1.0.0
 -- synopsis:
 -- description:
@@ -19,16 +19,8 @@ common warnings
 library
     import:           warnings
     exposed-modules:
-        Memorist.Base.Thunk
-        Memorist.Base.Core
-        Memorist.Base.ANT
-        Memorist.Base.Extension
-        Memorist.Data.Interface
-        Memorist.Data.Interface.Data
-        Memorist.Data.Interface.Demand
-        Memorist.Data.List
-        Memorist.Infer.Infer
         Memorist.Memorist
+        Memorist.Data.List
         Memorist.Example.List
         Memorist.Example.ListSort
         Memorist.Example.Queue.Base
@@ -36,12 +28,17 @@ library
         Memorist.Example.Queue.Batched
         Memorist.Example.Queue.BatchedLazy
         Memorist.Example.NewtonRaphson
-    -- other-modules:
+    other-modules:
+        Memorist.Base.Thunk
+        Memorist.Base.Core
+        Memorist.Base.ANT
+        Memorist.Base.Extension
+        Memorist.Data.Interface
+        Memorist.Data.Interface.Data
+        Memorist.Data.Interface.Demand
+        Memorist.Infer.Infer
         Memorist.Base.Strict
-        -- NOTE: below not exporting
-        Memorist.MemoristStrict
         Memorist.Example.Util
-    -- other-extensions:
     build-depends: 
         base >=4.14 && <5,
         containers >=0.6,
