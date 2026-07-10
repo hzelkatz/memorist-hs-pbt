@@ -1,7 +1,5 @@
 {-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE TypeOperators #-}
-
-{-# LANGUAGE AllowAmbiguousTypes #-}
+-- {-# LANGUAGE TypeOperators #-}
 
 module Memorist.Example.Queue.Bankers where
 
@@ -14,7 +12,6 @@ import Memorist.Example.Util
 import Test.QuickCheck as QC
 
 -- NOTE: only for internal testing
-import Data.Tree
 import Control.Monad (replicateM_)
 
 
@@ -27,9 +24,6 @@ instance Queue Bankers where
 
     enqueue (Bankers nf f nr r) x = check $ Bankers nf f (nr + 1) (x:r)
 
-    -- dequeue (Bankers nf (x:f) nr r) =
-    --     Just (x, check (Bankers (nf - 1) f nr r))
-    -- dequeue _ = Nothing
     dequeue (Bankers nf (x:f) nr r) =
         SMaybe $ Just $ SPair (x, check (Bankers (nf - 1) f nr r))
     dequeue _ = SMaybe Nothing

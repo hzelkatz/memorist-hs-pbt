@@ -1,9 +1,9 @@
--- Basic version.
+-- The 
 
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FlexibleInstances #-}
 
-module Memorist.Base.Basic where
+module Memorist.Base.ANT where
 
 import Memorist.Base.Thunk
 import Memorist.Base.Core
@@ -14,9 +14,7 @@ import Control.Monad.Writer.Lazy
 
 type MemoristM = MemoristT Identity
 
--- In the basic version, the thunk name is just a natural number.
--- The state is thus of Int type.
-newtype MemoristT m a = MemoristT { runMT :: MemoristBaseT Int m a }
+newtype MemoristT m a = MemoristT { runMT :: MemoristBaseT ThName m a }
 
 instance Functor m => Functor (MemoristT m) where
     fmap f = MemoristT . fmap f . runMT
@@ -28,7 +26,7 @@ instance Monad m => Applicative (MemoristT m) where
 instance Monad m => Monad (MemoristT m) where
     m >>= k = MemoristT $ runMT m >>= runMT . k
 
-instance Monad m => MonadState Int (MemoristT m) where
+instance Monad m => MonadState ThName (MemoristT m) where
     get = MemoristT $ get
     put = MemoristT . put
 
@@ -41,28 +39,33 @@ instance Monad m => MonadWriter Annot (MemoristT m) where
 --     tick = MemoristT $ tick
 
 instance Monad m => MonadAnnot (MemoristT m) where
-    -- returnA = MemoristT . returnA
     annotate x = MemoristT . annotate x
     wrapA = MemoristT . wrapA . runMT
 
--- This version assign names which are essentially just plain natural number
--- consecutively to every thunkable part in the same order as if
--- the evaluation is done eagerly.
+-- One major difference is how the `lazy` combinator works.
+-- Instead of computing and assigning names to thunk consecutively,
+-- we make the thunked computation run in the next level of names (`enclose`).
+-- After returning from the thunked computation, we resume to the previous level,
+-- from which the name of the thunk as a result of this `lazy m` is also generated.
 instance Monad m => MonadMemorist (MemoristT m) where
     lazy m = do
-        ~(Annotated x a) <- wrapA m
+        ~(Annotated x a) <- enclose m
         n <- genName
         return $ Th n x a
 
-instance Memorist Int (MemoristT Identity) where
+instance Memorist ThName (MemoristT Identity) where
     runM m = runIdentity . runMMBT (runMT m)
+
+enclose :: Monad m => MemoristT m a -> MemoristT m (Annotated a)
+enclose m = do
+    n <- get
+    put $ nshift n
+    xa <- wrapA m
+    put n
+    return xa
 
 genName :: Monad m => MemoristT m ThName
 genName = do
     n <- get
-    put $ n + 1
-    return $ getName n
-
-instance MSt Int where
-    initstate = 0
-    getName = fromInt
+    put $ nnext n
+    return n

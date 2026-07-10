@@ -1,14 +1,14 @@
-{-# LANGUAGE TypeFamilies #-}
+-- {-# LANGUAGE TypeFamilies #-}
 -- {-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE TypeOperators #-}
+-- {-# LANGUAGE TypeOperators #-}
 
-{-# OPTIONS_GHC -Wno-orphans #-}
+-- {-# OPTIONS_GHC -Wno-orphans #-}
 
 module Memorist.Example.Queue.Base where
 
 import Memorist.Memorist as M
 
-import Data.List.NonEmpty ( NonEmpty(..), fromList, toList )
+import Data.List.NonEmpty ( NonEmpty(..) )
 import Data.Tree
 import Control.Monad (liftM)
 import Test.QuickCheck as QC 
@@ -34,11 +34,13 @@ class QueueT t where
     enqueueM :: Th (t a) -> Th a -> MemoristM (t a)
     dequeueM :: Th (t a) -> MemoristM (Maybe (a, t a))
 
--- -----------------------------------------------------------------------------
-
+-- Potentials for physicist's method
 class HasPotential t where
     potential :: t a -> Int
 
+-- -----------------------------------------------------------------------------
+
+-- Representation of queue operations
 data Op a = Enq a | Deq deriving (Eq,Show)
 
 liftOp :: Repr a => Op a -> MemoristM (Op (Rep a))
@@ -50,6 +52,7 @@ liftTree (Node op t) = Node <$> liftOp op <*> mapM liftTree t
 
 instance Arbitrary a => Arbitrary (Op a) where
     arbitrary = frequency [ (3, Enq <$> arbitrary), (1, return Deq) ]
+
 
 class Trace t where
     toTree :: t a -> Tree (Op a)

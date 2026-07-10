@@ -21,16 +21,14 @@ library
     exposed-modules:
         Memorist.Base.Thunk
         Memorist.Base.Core
-        Memorist.Base.AltName
-        Memorist.Base.Basic
+        Memorist.Base.ANT
+        Memorist.Base.Extension
         Memorist.Data.Interface
         Memorist.Data.Interface.Data
         Memorist.Data.Interface.Demand
         Memorist.Data.List
         Memorist.Infer.Infer
         Memorist.Memorist
-        Memorist.MemoristBasic
-        -- Memorist.Example.Test
         Memorist.Example.List
         Memorist.Example.ListSort
         Memorist.Example.Queue.Base
@@ -38,6 +36,9 @@ library
         Memorist.Example.Queue.Batched
         Memorist.Example.Queue.BatchedLazy
     -- other-modules:
+        Memorist.Base.Strict
+        -- NOTE: below not exporting
+        Memorist.MemoristStrict
         Memorist.Example.Util
     -- other-extensions:
     build-depends: 

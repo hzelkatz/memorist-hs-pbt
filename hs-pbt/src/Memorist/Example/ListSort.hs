@@ -4,10 +4,9 @@ module Memorist.Example.ListSort where
 import Memorist.Memorist as M
 import Memorist.Data.List
 import Memorist.Example.Util
-import Memorist.Example.List (takeM , mapM)
-import Test.QuickCheck as QC ( Property, SortedList (..), NonNegative (..), noShrinking )
-
-import Prelude hiding (mapM)
+import Memorist.Example.List (takeM , mapMM)
+import Test.QuickCheck as QC ( Property, SortedList (..), NonNegative (..)
+                             , noShrinking, arbitrary, forAll, suchThat )
 
 -- insertion sort
 
@@ -19,10 +18,10 @@ insertionSort (x:xs) = insert x $ insertionSort xs
 insert :: Ord a => a -> [a] -> [a]
 insert x []     = [x]
 insert x (y:ys) = if x <= y then x:(y:ys) else y : insert x ys
+-}
 
 -- qcN_insertionSortCorrect n = quickCheckN n $ \(xs :: [Int]) ->
 --     correct (fromPure1 insertionSortM xs) (insertionSort xs)
--}
 
 insertionSortM :: Ord a => Th (ListT a) -> MemoristM (ListT a)
 insertionSortM txs = do
@@ -57,6 +56,16 @@ qcN_insertUBound n = quickCheckN n $ \(x::Int) (xs::[Int]) ->
 qcN_insertionSortBoundWrong :: Int -> IO ()
 qcN_insertionSortBoundWrong k = quickCheckN k $ \(xs :: [Int]) ->
     fromPure1 insertionSortM xs `upperboundby`
+        \_ _ -> let n = fromIntegral (length xs) in n * logBase 2 (max 1 n) + 1
+
+qcN_insertionSortBoundWrong' :: Int -> IO ()
+qcN_insertionSortBoundWrong' k = quickCheckN k $ noShrinking $ \(xs :: [Int]) ->
+    fromPure1 insertionSortM xs `upperboundby`
+        \_ _ -> let n = fromIntegral (length xs) in n * logBase 2 (max 1 n) + 1
+
+qcN_insertionSortBoundWrong'' :: Int -> IO ()
+qcN_insertionSortBoundWrong'' k = quickCheckN k $ noShrinking $ \(xs :: [Int]) ->
+    fromPure1 insertionSortM xs `upperboundWith` fullDemand $
         \_ _ -> let n = fromIntegral (length xs) in n * logBase 2 (max 1 n) + 1
 
 -- We can give, e.g., the following upper bound on the computation cost in the worst case.
@@ -288,7 +297,7 @@ qcN_mergesortUBound' k = quickCheckN k $ \(xs :: [Int]) ->
     fromPure1 mergesortM xs `upperboundWith` fullDemand $
         \_ _ -> n * logBase 2 (max 1 n)
 
--- In terms of demand?
+-- If we want to consider demand...
 qcN_mergesortUBound'' :: Int -> IO ()
 qcN_mergesortUBound'' k = quickCheckN k $ \(xs :: [Int]) ->
     let n = fromIntegral (length xs) :: Double in

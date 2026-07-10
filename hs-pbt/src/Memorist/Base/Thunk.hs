@@ -6,7 +6,7 @@ import qualified Data.Set as Set
 
 
 -- TODO: this version has performance issue in terms of name comparison.
--- Use Data.Sequence.Seq instead?
+-- Use eg. Data.Sequence.Seq instead?
 
 -- | A thunk name is essentially just a nonempty sequence of numbers.
 data ThName = ThName (NonEmpty Int)
@@ -27,6 +27,7 @@ nshift (ThName n) = ThName (0 <| n)
 fromInt :: Int -> ThName
 fromInt i = ThName (i :| [])
 
+
 newtype Cost = Cost Integer
     deriving (Eq, Ord, Show)
 
@@ -41,6 +42,7 @@ toInteger (Cost n) = n
 
 showInteger :: Cost -> String
 showInteger = show . toInteger
+
 
 data NameCost = NameCost { ncname :: ThName, nccost :: Cost }
     deriving (Eq, Ord, Show)
@@ -58,9 +60,6 @@ insert = Set.insert
 
 freshFrom :: USet -> ThName -> USet
 freshFrom s n = Set.filter ((>= n) . ncname) s
-
--- sumcost :: USet -> Cost
--- sumcost = Set.foldr (cplus . nccost) (Cost 0)
 
 sumcost :: USet -> Cost
 sumcost = sumcost' (const True)
@@ -122,6 +121,6 @@ useThunk (Th n x a) = (x, insert (NameCost n (acost a)) $ ausage a)
 useThunk' :: Th a -> USet
 useThunk' = snd . useThunk
 
--- not used yet
+-- NOTE: not used yet
 datasize :: (a -> Int) -> Th a -> Int
 datasize f (Th _ x _) = f x

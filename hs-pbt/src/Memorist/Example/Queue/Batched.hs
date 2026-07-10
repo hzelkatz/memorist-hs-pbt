@@ -71,7 +71,9 @@ instance QueueT BatchedT where
                 return $ Just (x, q')
 
 checkM :: BatchedT a -> MemoristM (BatchedT a)
-checkM (BatchedT [] r) = reverseM r >>= \r' -> return (BatchedT r' [])
+checkM (BatchedT [] r) = do
+    r' <- reverseM r
+    return (BatchedT r' [])
 checkM q = return q
 
 -- -- Correctness:

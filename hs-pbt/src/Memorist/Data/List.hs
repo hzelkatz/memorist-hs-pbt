@@ -1,5 +1,4 @@
 {-# LANGUAGE TypeFamilies #-}
--- {-# LANGUAGE GeneralisedNewtypeDeriving #-}
 
 {-# OPTIONS_GHC -Wno-orphans #-}
 
@@ -100,7 +99,6 @@ instance ReprDemandArb a => ReprDemandArb [a]
 
 newtype SList a = SList [a]
     deriving (Eq, Show)
-    -- deriving (Eq, Show, Foldable, Functor, Applicative, Monad)
 
 fromSList :: SList a -> [a]
 fromSList (SList l) = l

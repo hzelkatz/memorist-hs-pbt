@@ -27,12 +27,6 @@ instance MonadWriter Annot Annotated where
     listen (Annotated x a) = Annotated (x, a) a
     pass (Annotated (x, f) a) = Annotated x (f a)
 
--- annotate :: (a, Annot) -> Annotated a
--- annotate (x, a) = Annotated x a
-
--- unwrapAnnot :: Annotated a -> (a, Annot)
--- unwrapAnnot (Annotated x a) = (x, a)
-
 costAnnot :: Annotated a -> Cost
 costAnnot = acost . annot
 
@@ -88,9 +82,6 @@ instance MonadState s m => MonadState s (AnnotT m) where
 
 
 class Monad m => MonadAnnot m where
-    -- -- unfolds the Annotated, returns the pure value and carry the annotation in output
-    -- returnA :: Annotated a -> m a
-    --
     -- returns the pure value in a monad and carry the annotation in the monad output
     annotate :: a -> Annot -> m a
     -- wraps the value with the annotation accumulated so far, returns
@@ -98,12 +89,10 @@ class Monad m => MonadAnnot m where
     wrapA :: m a -> m (Annotated a)
 
 instance MonadAnnot Annotated where
-    -- returnA = id
     annotate = Annotated
     wrapA = pure
 
 instance Monad m => MonadAnnot (AnnotT m) where
-    -- returnA = hoistAnnot
     annotate x = hoistAnnot . annotate x
     wrapA = mapAnnotT (fmap wrapA)
 
@@ -136,11 +125,9 @@ class MonadAnnot m => MonadMemorist m where
     lazy :: m a -> m (Th a)
 
     force :: Th a -> m a
-    -- force t = let (x, u) = useThunk t in returnA $ Annotated x (fromSet u)
     force t = let (x, u) = useThunk t in annotate x (fromSet u)
 
     tick :: m ()
-    -- tick = returnA $ Annotated () (fromCost onetick)
     tick = annotate () (fromCost onetick)
 
 class (MSt s, MonadState s m, MonadMemorist m) => Memorist s m where
@@ -183,6 +170,5 @@ instance Monad m => MonadWriter Annot (MemoristBaseT s m) where
 --     tick = MemoristBaseT $ tick
 
 instance Monad m => MonadAnnot (MemoristBaseT s m) where
-    -- returnA = MemoristBaseT . returnA
     annotate x = MemoristBaseT . annotate x
     wrapA = MemoristBaseT . wrapA . runMBT

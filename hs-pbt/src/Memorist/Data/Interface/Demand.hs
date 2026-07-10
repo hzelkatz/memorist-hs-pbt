@@ -120,6 +120,10 @@ instance (LBoundDemand a, LBoundDemand b) => LBoundDemand (a,b) where
 
 -- =============================================================================
 
+-- TODO: actually we never use the standalone generator.
+-- Do we actually used shrinkers? maybe during shrinking process, but not sure.
+-- I wonder if there's a better approach.
+
 -- QuickCheck generator for ThD.
 -- The definitions are inspired by the official defns for the Maybe type
 instance Arbitrary1 ThD where
@@ -132,6 +136,8 @@ instance Arbitrary a => Arbitrary (ThD a) where
     arbitrary = arbitrary1
     shrink = shrink1
 
+-- TODO: this is where the plain `arbitrary` is every used.
+-- but we can simply unfold and use `frequency` directly.
 arbitraryWrap :: a -> Gen (ThD a)
 arbitraryWrap x = do
     d <- (arbitrary :: Gen (ThD ()))
@@ -164,6 +170,8 @@ instance (Arbitrary a, Arbitrary b) => Arbitrary (PairD a b) where
     arbitrary = arbitrary2
     shrink = shrink2
 
+
+-- TODO: do we really need Arbitrary? The forAll combinator only requires Gen and Show.
 
 -- Demand type with QC generators defined.
 -- Defined over Memorist transformed type (the one with named thunks).
@@ -209,8 +217,8 @@ instance DemandArb a => DemandArb (Th a) where
         arbitraryWrap x'
 
 -- NOTE: not used currently
-arbDemandM :: (Memorist s m, DemandArb a) => m a -> Gen (Dem a)
-arbDemandM m = arbDemandFrom $ value $ eval m $ initstate
+-- arbDemandM :: (Memorist s m, DemandArb a) => m a -> Gen (Dem a)
+-- arbDemandM m = arbDemandFrom $ value $ eval m $ initstate
 
 class (Repr a, Demand (Rep a)) => ReprDemand a
 
