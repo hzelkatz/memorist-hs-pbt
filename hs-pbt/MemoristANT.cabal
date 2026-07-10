@@ -28,7 +28,9 @@ library
         Memorist.Example.Queue.Batched
         Memorist.Example.Queue.BatchedLazy
         Memorist.Example.NewtonRaphson
-    other-modules:
+        -- ** Not done:
+        Memorist.Example.ListInf
+    -- other-modules:
         Memorist.Base.Thunk
         Memorist.Base.Core
         Memorist.Base.ANT
@@ -39,6 +41,9 @@ library
         Memorist.Infer.Infer
         Memorist.Base.Strict
         Memorist.Example.Util
+    -- No export:
+        -- Memorist.Example.Test
+    -- other-extensions:
     build-depends: 
         base >=4.14 && <5,
         containers >=0.6,
@@ -46,4 +51,5 @@ library
         QuickCheck >=2.17 && < 3
     hs-source-dirs:
         src
+        -- src/extra
     default-language: GHC2021

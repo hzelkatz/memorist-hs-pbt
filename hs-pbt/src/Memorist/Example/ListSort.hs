@@ -119,6 +119,9 @@ qcN_insertionSortSortedCostWrong n = quickCheckN n $ \(xs :: SortedList Int) ->
 -- This is because, we can have an equal pair of elements in the revserely sorted list,
 -- but this may not invoke more comparisons for the first element in the pair.
 
+-- NOTE to self: the multiple `take n sorted` examples may use higher-order functions;
+-- hof's are not used otherwise in insertion or merge sort per se.
+
 -- TODO: multiple of `take n sorted`
 
 {-
