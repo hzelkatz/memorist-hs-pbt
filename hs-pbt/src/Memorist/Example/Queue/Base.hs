@@ -131,17 +131,19 @@ fromNonEmpty (op :| ops) = Node op $ foldr f [] ops
 flattenToList :: Tree (Op a) -> [Op a]
 flattenToList (Node x ts) = x : concatMap flattenToList ts
 
--- QuickCheck does not implement Arbitrary for NonEmpty
--- but has its own NonEmptyList type which we borrow here
-instance Arbitrary a => Arbitrary (NonEmpty a) where
-    arbitrary = fromQCNonEmpty <$> arbitrary
-    shrink = shrinkMap fromQCNonEmpty toQCNonEmpty
+-- NOTE: QuickCheck 2.16 and before does not implement Arbitrary for NonEmpty
+-- but has its own NonEmptyList type which we can borrow here
+-- However, QuickCheck >=2.17 does have one...
+--
+-- instance Arbitrary a => Arbitrary (NonEmpty a) where
+--     arbitrary = fromQCNonEmpty <$> arbitrary
+--     shrink = shrinkMap fromQCNonEmpty toQCNonEmpty
+-- 
+-- fromQCNonEmpty :: NonEmptyList a -> NonEmpty a
+-- fromQCNonEmpty = fromList . getNonEmpty
 
-fromQCNonEmpty :: NonEmptyList a -> NonEmpty a
-fromQCNonEmpty = fromList . getNonEmpty
-
-toQCNonEmpty :: NonEmpty a -> NonEmptyList a
-toQCNonEmpty = QC.NonEmpty . toList
+-- toQCNonEmpty :: NonEmpty a -> NonEmptyList a
+-- toQCNonEmpty = QC.NonEmpty . toList
 
 instance Arbitrary a => Arbitrary (SeqTrace a) where
     arbitrary = SeqTrace <$> arbitrary
