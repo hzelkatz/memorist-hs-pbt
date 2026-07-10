@@ -304,3 +304,8 @@ qcN_mergesortUBound'' k = quickCheckN k $ \(xs :: [Int]) ->
     let n = fromIntegral (length xs) :: Double in
     fromPure1 mergesortM xs `upperboundby`
         \_ d -> n * logBase 2 (max 1 (fromIntegral (sizeD 0 d + 1)))
+
+qcN_mergesortSortedWrong :: Int -> IO ()
+qcN_mergesortSortedWrong n = quickCheckN n $ \(xs :: SortedList Int) ->
+    let sorted = getSorted xs in
+    fromPure1 mergesortM sorted `upperboundby` \_ _ -> length sorted
