@@ -1,7 +1,6 @@
-# QuickChecking the Cost of Laziness over Infinite Structures (Artifact)
+# Artifact: Property-based testing framework in Haskell
 
-This artifact, accompanying the paper "QuickChecking the Cost of Laziness over Infinite Structures",
-contains a QuickCheck-based property-based testing framework implemented in Haskell for testing specifications about lazy evaluation cost of functions and programs.
+This artifact contains a QuickCheck-based property-based testing framework implemented in Haskell for testing specifications about lazy evaluation cost of functions and programs.
 It also contains several case studies, such as some common first- and higher-order list functions (also including the `replicate` function that works on potentially infinite lists), the insertion sort and merge sort algorithms, the batched queue and Okasaki's banker's queue, and an infinite-list based implementation of NewtonRaphson approximation.
 
 
