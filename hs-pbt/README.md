@@ -65,6 +65,7 @@ The directory is structured as follows:
       * `BatchedLazy.hs` - the batched queue with lazy lists
     * `List.hs` - functions on lists
     * `ListSort.hs` - sorting algorithms on lists, including insertion sort and merge sort
+    * `NewtonRaphson.hs` - Newton-Raphson approximation
     * `Util.hs`
   * `Infer/`
     * `Infer.hs` - lazy cost derivation and testing interface
