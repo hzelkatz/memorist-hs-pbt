@@ -32,7 +32,7 @@ qc_headCost = quickCheck $ \(xs :: NonEmptyList Int) ->
 -}
 tailM :: Th (ListT a) -> MemoristM (ListT a)
 tailM txs = do
-    -- tick
+    tick
     xs <- force txs
     case xs of
         NilT -> error "empty list"
@@ -98,9 +98,6 @@ qc_appendInfOk = quickCheck $
     fromPure2 appendM xs ys `upperboundby` \_ d -> sizeD 1 d
     where (xs, ys) = ([1,2..]::[Int], [1,2..]::[Int])
 
--- appendM_test :: Cost
--- appendM_test = infcost (fromPure2 appendM ([1,2..]::[Int]) ([1,2..]::[Int])) minDemand
-
 
 -- take
 {-
@@ -137,6 +134,8 @@ takeM tn txs = do
                 tzs <- lazy $ takeM tn1 tys
                 return $ ConsT ty tzs
     else return NilT
+
+-- Both bounds should hold:
 
 qc_takeBound :: IO ()
 qc_takeBound = quickCheck (prop :: Int -> [Int] -> QC.Property)
@@ -178,11 +177,6 @@ prop_reverseCost xs = fromPure1 reverseM xs `exactly` \_ _ -> length xs + 2
 qcN_reverseCost :: Int -> IO ()
 qcN_reverseCost n = quickCheckN n (prop_reverseCost :: [Int] -> QC.Property)
 
--- NOTE: compact version
-qc_reverseCost :: IO ()
-qc_reverseCost = quickCheck $ \(xs :: [Int]) ->
-    fromPure1 reverseM xs `exactly` \_ _ -> length xs + 2
-
 -- In comparison, this is a naïve implementation of reverse
 {-
     reverseNaive []     = []
@@ -200,19 +194,12 @@ reverseNaiveM txs = do
             ty <- lazy $ return $ ConsT tx tn
             appendM tr ty
 
--- rc1 :: [Int] -> ListD Int -> (Cost, Int, Annotated (ListT Int))
--- rc1 x d = (infcost m (\_ -> d), c, v)
---     where m = fromPure1 reverseNaiveM x
---           v = eval m initstate
---           c = 2 * (length x + 1)
---         --   c = (sizeD 0 d + 1) * (length x + 1)
-
 -- The naïve implementation is known to belong to O(n^2).
 
 -- We try the linear bound first, which should usually be falsified
 qcN_reverseNaiveCostFail :: Int -> IO ()
 qcN_reverseNaiveCostFail n = quickCheckN n $ \(xs :: [Int]) ->
-    fromPure1 reverseNaiveM xs `upperboundby` \_ _ -> 5 * (length xs + 10)
+    fromPure1 reverseNaiveM xs `upperboundby` \_ _ -> 2 * (length xs + 1)
 
 -- Tests without shrinking sometimes provide more interesting counterexamples
 qcN_reverseNaiveCostFail' :: Int -> IO ()
@@ -234,24 +221,6 @@ qcN_reverseNaiveLBound :: Int -> IO ()
 qcN_reverseNaiveLBound n = quickCheckN n $ \(xs :: [Int]) ->
     fromPure1 reverseNaiveM xs `lowerboundby` \_ _ -> length xs + 1
 
-{-
--- We can compare the cost incurred by the two versions of reverse
--- on the same input (and wrt the same demand on the value).
---
--- NOTE: while this property likely holds, we have to take into account that
--- the Naive version has additional overhead since reverse itself and append both
--- contribute to the final cost. This will inflates the cost of the naive reverse
--- but it is more than what we are actually interested.
--- A better comparison would be to *not* tick in the reverseNaiveM (ie counting
--- only ticks of append), in which case the one below likely still holds.
-prop_compareReverse :: ReprDemandArb a => [a] -> QC.Property
-prop_compareReverse xs = compareOnSame (fromPure1 reverseM xs) (fromPure1 reverseNaiveM xs) $
-    \cost1 cost2 -> cost1 <= cost2 + 2
-
-qcN_compareReverse :: Int -> IO ()
-qcN_compareReverse n = quickCheckN n (prop_compareReverse :: [Int] -> QC.Property)
--}
-
 --------------------------------------------------------------------------------
 
 -- Examples involving potentially non-terminating computations
@@ -269,17 +238,13 @@ repeatM tx = do
     tick
     txs <- lazy $ repeatM tx
     return $ ConsT tx txs
--- -- Or oneliner:
--- repeatM tx = tick >> lazy (repeatM tx) >>= return . ConsT tx
-
--- repeatM_cost :: ReprDemandArb a => a -> Dem (Rep [a]) -> Cost
--- repeatM_cost = infcostFromPure1 repeatM'
---
--- repeatM_cost (42::Int) $ ConsD (Need 42) $ Need $ ConsD (Need 42) Skip
 
 prop_repeatCost :: ReprDemandArb a => a -> QC.Property
 prop_repeatCost x = fromPure1 repeatM x `exactly` \_ d -> sizeD 1 d
 
+-- This should run fine and typically pass all tests.
+-- 
+-- However, caution is neded.
 -- Computation of repeatM itself can go on indefinitely when demanded in full:
 -- try running and printing
 --      eval (fromPure1 repeatM True) initstate
@@ -292,13 +257,10 @@ prop_repeatCost x = fromPure1 repeatM x `exactly` \_ d -> sizeD 1 d
 -- 
 -- In principle it may be possible for it to keep generating demand needing the next thunk,
 -- i.e. a 'potentially infinite demand', though we have not observed this in practice.
--- Even if it is possible, it is very unlikely anyway. But caution is still needed.
+-- Generally speaking, even if it is possible, it should be very unlikely.
 qc_repeatCost :: Int -> IO ()
 qc_repeatCost n = quickCheckN n (prop_repeatCost :: Int -> QC.Property)
 
--- Obviously, it also works with the replicate function below, since the
--- 'take n' function always demand a finite portion from the result of 'repeat'
--- under lazy evaluation.
 
 -- replicate
 {-
@@ -317,17 +279,6 @@ qcN_replicateBound n = quickCheckN n $ \(m :: Int) (x :: Int) ->
 qc_replicateBound :: IO ()
 qc_replicateBound = quickCheck $ \(n :: Int) (x :: Int) ->
     fromPure2 replicateM n x `upperboundby` \_ _ -> 2 * max 1 (n + 1)
-
--- NOTE: The two below also work though not very interesting
-
-qcN_replicateBound1 :: Int -> IO ()
-qcN_replicateBound1 n = quickCheckN n $ \(x :: Int) ->
-    fromPure2 replicateM n x `upperboundWith` fullDemand $ \_ _ -> 2 * max 1 (n + 1)
-
-qcN_replicateBound' :: Int -> IO ()
-qcN_replicateBound' n = quickCheckN n $ \(x :: Int) ->
-    fromPure2 replicateM n x `upperboundby` \_ d ->
-        2 * min (max 1 (n + 1)) ((sizeD 0 d) + 1)
 
 --------------------------------------------------------------------------------
 
@@ -390,7 +341,7 @@ qcN_concatMBound :: Int -> IO ()
 qcN_concatMBound n = quickCheckN n $ \(xss :: [[Int]]) ->
     fromPure1 concatM xss `upperboundby` \_ d -> 2 * (sizeD 1 d + length xss) + 1
 
--- NOTE: alternative specification not in paper
+-- Alternative specification not in paper
 qcN_concatMBound' :: Int -> IO ()
 qcN_concatMBound' n = quickCheckN n $ \(xss :: [[Int]]) ->
     fromPure1 concatM xss `upperboundby` \_ _ -> 2 * length xss + length (concat xss) + 2
@@ -402,20 +353,12 @@ concatLM txs = do
     tz <- lazy $ return NilT
     foldlM ta tz txs
 
-cost_concatLM :: ReprDemand a => [[a]] -> (Rep [a] -> Dem (Rep [a])) -> Cost
-cost_concatLM xss = infcost (fromPure1 concatLM xss)
-
--- ttt1a = cost_concatM ([[0,0],[],[0,0],[0,0]]::[[Int]]) $ \_ -> ConsD (Need 0) (Need (ConsD Skip (Need (ConsD (Need 0) Skip))))
--- ttt1b = cost_concatLM ([[0,0],[],[0,0],[0,0]]::[[Int]]) $ \_ -> ConsD (Need 0) (Need (ConsD Skip (Need (ConsD (Need 0) Skip))))
--- ttt2a = cost_concatM ([[0,0,0,0],[0,0,0,0],[0],[0,0]]::[[Int]]) $ \_ -> ConsD (Need 0) (Need (ConsD (Need 0) (Need (ConsD (Need 0) (Need (ConsD (Need 0) Skip))))))
--- ttt2b = cost_concatLM ([[0,0,0,0],[0,0,0,0],[0],[0,0]]::[[Int]]) $ \_ -> ConsD (Need 0) (Need (ConsD (Need 0) (Need (ConsD (Need 0) (Need (ConsD (Need 0) Skip))))))
-
--- this will likely be falsified: the fold version of concat is nonlinear.
+-- This will likely be falsified: the fold version of concat is nonlinear.
 qcN_concatLMBoundWrong :: Int -> IO ()
 qcN_concatLMBoundWrong n = quickCheckN n $ \(xss :: [[Int]]) ->
     fromPure1 concatLM xss `upperboundby` \_ d -> 2 * (sizeD 1 d + length xss) + 1
 
--- NOTE: alternative bound not in paper; also falsified
+-- Alternative bound not in paper; also falsified
 qcN_concatLMBoundWrong' :: Int -> IO ()
 qcN_concatLMBoundWrong' n = quickCheckN n $ \(xss :: [[Int]]) ->
     fromPure1 concatLM xss `upperboundby` \_ _ -> 2 * length xss + length (concat xss) + 2
@@ -423,24 +366,6 @@ qcN_concatLMBoundWrong' n = quickCheckN n $ \(xss :: [[Int]]) ->
 qcN_concatLMBound :: Int -> IO ()
 qcN_concatLMBound n = quickCheckN n $ \(xss :: [[Int]]) ->
     fromPure1 concatLM xss `upperboundby` \_ d -> (sizeD 1 d + 1) * (length xss + 1)
-
--- NOTE: Testing with larger constants;
--- Eg. 2 * (length xss + length (concat xss)) + 8
---
--- ghci> qcN_concatLMUBound 1000
--- *** Failed! Falsified (after 12 tests and 19 shrinks):    
--- [[0],[0,0,0],[],[],[]]
--- ConsD (Need 0) (Need (ConsD (Need 0) (Need (ConsD (Need 0) (Need (ConsD (Need 0) (Need NilD)))))))
---
--- ttt2 = (cost_concatLM xss (\_ -> d), 2 * length xss + length (concat xss) + 2)
---     where xss = [[0],[0,0,0],[],[],[]] :: [[Int]]
---           d = ConsD (Need 0) (Need (ConsD (Need 0) (Need (ConsD (Need 0) (Need (ConsD (Need 0) (Need NilD)))))))
--- -- (25, 16)
--- Slightly bigger difference but...
---
--- For comparison, a handpicked example
--- let xss = ([[1..20],[2..16],[3..12],[4..8],[5]]::[[Int]]) in (cost_concatLM xss fullDemand, 2 * length xss + length (concat xss) + 2)
--- -- (162,63)
 
 
 {-
@@ -459,39 +384,6 @@ mapMM tf txs = do
             tz <- lazy $ f ty
             tzs <- lazy $ mapMM tf tys
             return $ ConsT tz tzs
-
--- NOTE: fusion examples including the mapSucc one should all work even
--- after -O2 optimized compilation since the optimization does not
--- optimize through monadic definitions afaik.
--- This means we can actually use this framework to compare fused vs unfused directly,
--- although obviously the underlying program (the unfused version) will
--- be less efficient to actually execute.
-
--- A fusion example: mapSucc
---      map succ . mapp succ     vs    map (succ . succ)
--- The former need one more pass over the input list.
-
-mapSuccM1 :: Th (ListT Int) -> MemoristM (ListT Int)
-mapSuccM1 txs = do
-    tick
-    tf <- lazy $ return succM
-    tzs <- lazy $ mapMM tf txs
-    mapMM tf tzs
-
-mapSuccM2 :: Th (ListT Int) -> MemoristM (ListT Int)
-mapSuccM2 txs = do
-    tick
-    tf <- lazy $ composeM succM succM
-    mapMM tf txs
-
-succM :: Th Int -> MemoristM Int
-succM tn = do
-    tick
-    n <- force tn
-    return $ n + 1
-
--- mapSuccCost :: [Int] -> (Cost,Cost)
--- mapSuccCost xs = (infcost (fromPure1 mapSuccM1 xs) fullDemand, infcost (fromPure1 mapSuccM2 xs) fullDemand)
 
 {-
     concatMap :: (a -> [b]) -> [a] -> [b]
@@ -534,25 +426,6 @@ cmsM2 txs = do
     tf <- lazy $ return singletonM
     concatMapM' tf txs
 
-cmsCost :: [Int] -> (Cost,Cost)
-cmsCost xs = (infcost (fromPure1 cmsM1 xs) fullDemand, infcost (fromPure1 cmsM2 xs) fullDemand)
-
-{-
-    NOTE on the two cms cost:
-    For cmsM1:
-    concat over list of n singletons is ~3n when demanding in full:
-        - foldr over n element lists,
-        - append actually 2n, each elemment in the element list takes 1,
-            but each ([] ++ _) also takes 1, and there happens to
-            be n elements inside inner lists in total *and* n inner lists (thus n of []++_)
-    These above all get "truncated" proportionally if demanded less.
-    Additionally consider applying f (the singleton function) to each element.
-    So ~4n in total; with 1 constant cost to outermost concatMap.
-
-    For cmsM2:
-    Similar, but one additional pass. So ~5n in total.
--} 
-
 qcN_cmsM1Bound :: Int -> IO ()
 qcN_cmsM1Bound n = quickCheckN n $ \(xs :: [Int]) ->
     fromPure1 cmsM1 xs `upperboundby` \_ d -> 4 * sizeD 1 d + 1
@@ -574,6 +447,7 @@ qcN_cmsM2Bound n = quickCheckN n $ \(xs :: [Int]) ->
 -}
 filterM :: Th (Th a -> MemoristM Bool) -> Th (ListT a) -> MemoristM (ListT a)
 filterM tf txs = do
+    tick
     xs <- force txs
     case xs of
         NilT -> return NilT
@@ -602,6 +476,7 @@ filterM tf txs = do
 -}
 zipWithM :: Th (Th a -> Th b -> MemoristM c) -> Th (ListT a) -> Th (ListT b) -> MemoristM (ListT c)
 zipWithM tf txs tys = do
+    tick
     xs <- force txs
     case xs of
         NilT -> return NilT

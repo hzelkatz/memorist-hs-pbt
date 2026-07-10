@@ -5,9 +5,6 @@ import Data.List.NonEmpty (NonEmpty(..), (<|))
 import qualified Data.Set as Set
 
 
--- TODO: this version has performance issue in terms of name comparison.
--- Use eg. Data.Sequence.Seq instead?
-
 -- | A thunk name is essentially just a nonempty sequence of numbers.
 data ThName = ThName (NonEmpty Int)
     deriving (Eq, Ord, Show)
@@ -120,7 +117,3 @@ useThunk (Th n x a) = (x, insert (NameCost n (acost a)) $ ausage a)
 
 useThunk' :: Th a -> USet
 useThunk' = snd . useThunk
-
--- NOTE: not used yet
-datasize :: (a -> Int) -> Th a -> Int
-datasize f (Th _ x _) = f x

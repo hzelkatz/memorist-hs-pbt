@@ -1,4 +1,5 @@
--- The 
+-- The main version of the Memorist monad, based on our variant of
+-- the Memorist semantics that employs the ancestral thunk naming.
 
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FlexibleInstances #-}
@@ -35,16 +36,12 @@ instance Monad m => MonadWriter Annot (MemoristT m) where
     listen = MemoristT . listen . runMT
     pass = MemoristT . pass . runMT
 
--- instance Monad m => MonadTick (MemoristT m) where
---     tick = MemoristT $ tick
-
 instance Monad m => MonadAnnot (MemoristT m) where
     annotate x = MemoristT . annotate x
     wrapA = MemoristT . wrapA . runMT
 
--- One major difference is how the `lazy` combinator works.
--- Instead of computing and assigning names to thunk consecutively,
--- we make the thunked computation run in the next level of names (`enclose`).
+-- In computing `lazy`, we make the thunked computation run in
+-- the next level of names (`enclose`).
 -- After returning from the thunked computation, we resume to the previous level,
 -- from which the name of the thunk as a result of this `lazy m` is also generated.
 instance Monad m => MonadMemorist (MemoristT m) where

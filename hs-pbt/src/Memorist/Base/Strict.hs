@@ -40,9 +40,6 @@ instance Monad m => MonadWriter Annot (MemoristT m) where
     listen = MemoristT . listen . runMT
     pass = MemoristT . pass . runMT
 
--- instance Monad m => MonadTick (MemoristT m) where
---     tick = MemoristT $ tick
-
 instance Monad m => MonadAnnot (MemoristT m) where
     annotate x = MemoristT . annotate x
     wrapA = MemoristT . wrapA . runMT

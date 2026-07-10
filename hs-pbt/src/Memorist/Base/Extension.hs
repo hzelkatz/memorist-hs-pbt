@@ -9,9 +9,6 @@ import Memorist.Base.Core
 -}
 -- No ticks for simplicity. Function composition is often inlined anyway.
 composeM :: Memorist s m => (Th b -> m c) -> (Th a -> m b) -> m (Th a -> m c)
--- composeM f g = return $ \tx -> do
---     tz <- lazy $ g tx
---     f tz
 composeM f g = return $ \tx -> lazy (g tx) >>= f
 
 -- A variant that works on thunked functions.

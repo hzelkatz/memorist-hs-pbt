@@ -1,5 +1,11 @@
 {-# LANGUAGE TypeFamilies #-}
 
+-- A 'lazy' variant of the batched queue in which we use lazy lists
+-- (similar to banker's queue) internally.
+-- In fact, if we write the definitions using ordinary lists in Haskell,
+-- it is actually a lazy-list variant that we model here,
+-- not the version analysed in Okasaki's book (which is fully strict).
+
 module Memorist.Example.Queue.BatchedLazy where
 
 import Memorist.Memorist as M
@@ -7,12 +13,8 @@ import Memorist.Data.List
 import Memorist.Example.Queue.Base as Q
 import Memorist.Example.List ( reverseM )
 import Memorist.Example.Util
-
 import Test.QuickCheck as QC
 
--- Only for internal testing
-import Data.Tree
-import Control.Monad (replicateM_)
 
 data Batched a = Batched [a] [a]
     deriving (Eq,Show)
@@ -146,15 +148,13 @@ qcN_batchedlDeqAmortized :: Int -> IO ()
 qcN_batchedlDeqAmortized n = quickCheckN n $ \q -> prop_batchedlAmortized q (Deq :: Op Int) 3
 
 
--- NOTE: using 5* instead rarely produces any counterexample, though there still are some.
--- One example is found after 20499 tests with a condition `traceSize t > 100`.
--- Using implication results in too many discarded tests; we might want a customized generator.
--- I doubt that using this method, we probably need very large trace,
--- unless there are indeed smaller examples and effective generators.
+-- This does not hold, but it is less easy to discover a counterexample.
+-- More tests are typically needed.
 prop_batchedlRunTraceCost :: (ReprDemandArb a, LBoundDemand (Rep a), Trace t) => t a -> Property
 prop_batchedlRunTraceCost t =
     runTraceFromPure (Q.empty :: Batched a) t `upperboundWith` minDemand $ \_ _ -> 4 * traceSize t
 
+-- This should hold: it is a nonbranching sequence of operators (i.e. no persistent usage).
 qcN_batchedlRunSeqCost :: Int -> IO ()
 qcN_batchedlRunSeqCost n = quickCheckN n (prop_batchedlRunTraceCost :: SeqTrace Int -> Property)
 
@@ -164,17 +164,7 @@ qcN_batchedlRunSeqCost n = quickCheckN n (prop_batchedlRunTraceCost :: SeqTrace 
 qcN_batchedlRunLSTraceCost :: Int -> IO ()
 qcN_batchedlRunLSTraceCost n = quickCheckN n (prop_batchedlRunTraceCost :: LSTrace Int -> Property)
 
+-- This trace generator generates potentially branching traces, but is much less
+-- effective at finding counterexamples.
 qcN_batchedlRunRanTraceCost :: Int -> IO ()
 qcN_batchedlRunRanTraceCost n = quickCheckN n (prop_batchedlRunTraceCost :: RanTrace Int -> Property)
-
--- -----------------------------------------------------------------------------
-
-batch_batched :: Int -> Int -> IO ()
-batch_batched k j = replicateM_ j $
-    putStrLn "qcN_batchedEnqAmortized" >> qcN_batchedlEnqAmortized k
-    >>
-    putStrLn "qcN_batchedDeqAmortized" >> qcN_batchedlDeqAmortized k
-    >>
-    putStrLn "qcN_batchedRunSeqCost" >> qcN_batchedlRunSeqCost k
-    -- >>
-    -- putStrLn "qcN_batchedRunLSTraceCost" >> qcN_batchedRunLSTraceCost k 

@@ -9,10 +9,6 @@ import Memorist.Example.Util
 
 import Test.QuickCheck as QC
 
--- Only for internal testing
-import Data.Tree
-import Control.Monad (replicateM_)
-
 
 data Batched a = Batched (SList a) (SList a)
     deriving (Eq,Show)
@@ -154,6 +150,7 @@ prop_batchedRunTraceCost :: (ReprDemandArb a, LBoundDemand (Rep a), Trace t) => 
 prop_batchedRunTraceCost t =
     runTraceFromPure (Q.empty :: Batched a) t `upperboundWith` minDemand $ \_ _ -> 4 * traceSize t
 
+-- This should hold: it is a nonbranching sequence of operators (i.e. no persistent usage).
 qcN_batchedRunSeqCost :: Int -> IO ()
 qcN_batchedRunSeqCost n = quickCheckN n (prop_batchedRunTraceCost :: SeqTrace Int -> Property)
 
@@ -165,77 +162,3 @@ qcN_batchedRunLSTraceCost n = quickCheckN n (prop_batchedRunTraceCost :: LSTrace
 -- This trace generator seems less effective in finding counterexamples.
 qcN_batchedRunRanTraceCost :: Int -> IO ()
 qcN_batchedRunRanTraceCost n = quickCheckN n (prop_batchedRunTraceCost :: RanTrace Int -> Property)
-
-{-
-    One example discovered by qcN_batchedRunLSTraceCost when using abitrary demand
-    
-    *** Failed! Falsified (after 162 tests and 25 shrinks): 
-    (Node {rootLabel = Enq 26, subForest = [
-        Node {rootLabel = Enq 53, subForest = [
-            Node {rootLabel = Enq (-3), subForest = [
-                Node {rootLabel = Enq (-10), subForest = [
-                    Node {rootLabel = Deq, subForest = []},
-                    Node {rootLabel = Deq, subForest = []},
-                    Node {rootLabel = Deq, subForest = []},
-                    Node {rootLabel = Deq, subForest = []},
-                    Node {rootLabel = Deq, subForest = []}]}]}]}]})
-    [([26],[]),([26],[53]),([26],[-3,53]),([26],[-10,-3,53]),([53,-3,-10],[]),([53,-3,-10],[]),([53,-3,-10],[]),([53,-3,-10],[]),([53,-3,-10],[])]
-    Computed cost: 37; Intended: 36
-
-    One example discovered by qcN_batchedRunLSTraceCost using minDemand
-
-    *** Failed! Falsified (after 85 tests and 38 shrinks):      
-    (but with a very large trace)
-    Computed cost: 144; Intended: 140
-
-    There is also a run of qcN_batchedRunLSTraceCost discovering a small example,
-    but this tends to be rarer? But why?
--}
-
--- -----------------------------------------------------------------------------
-
-batch_batched :: Int -> Int -> IO ()
-batch_batched k j = replicateM_ j $
-    putStrLn "qcN_batchedEnqAmortized" >> qcN_batchedEnqAmortized k
-    >>
-    putStrLn "qcN_batchedDeqAmortized" >> qcN_batchedDeqAmortized k
-    >>
-    putStrLn "qcN_batchedRunSeqCost" >> qcN_batchedRunSeqCost k
-    -- >>
-    -- putStrLn "qcN_batchedRunTraceCost" >> qcN_batchedRunTraceCost k  -- expected failure
-
-
-qctesttracebatched :: Trace t => t Int -> IO ()
-qctesttracebatched t = quickCheckN 1 $ prop_batchedRunTraceCost t
-
-tracecostbatched :: Trace t => Batched Int -> t Int -> Cost
-tracecostbatched q t = infcost (runTraceFromPure q t) fullDemand
-
-q0 :: Batched Int
-q0 = Q.empty
-
-t10a :: RanTrace Int
-t10a = RanTrace $ Node (Enq 1) [Node (Enq 2) [ Node (Enq 3) [Node (Enq 4) [Node (Enq 5) [Node (Enq 6) [
-        Node Deq [ ] ]]]]]]
--- size = 7; actual cost = 17
--- Initial enqueue+rot = 1+(1+2)=4; then 5 enqueues; next deq triggers rot, 1+(5+2)=8
--- So total should be 4+5+8=17.
-
-t10a2 :: RanTrace Int
-t10a2 = RanTrace $ Node (Enq 1) [Node (Enq 2) [ Node (Enq 3) [Node (Enq 4) [Node (Enq 5) [Node (Enq 6) [
-        Node Deq [],
-        Node Deq [] ]]]]]]
--- size = 8; actual cost = 25, exactly one more copy of rot-triggering deq cost of 8.
--- This is already problematic (duplicating the work of reversal), but the cost
--- is too small to violate the bound 4 * traceSize.
-
-t10a5 :: RanTrace Int
-t10a5 = RanTrace $ Node (Enq 1) [Node (Enq 2) [ Node (Enq 3) [Node (Enq 4) [Node (Enq 5) [Node (Enq 6) [
-        Node Deq [],
-        Node Deq [],
-        Node Deq [],
-        Node Deq [],
-        Node Deq [] ]]]]]]
--- size = 11, actual cost = 49 == 17+4*8
--- This fails the trace test as expected.
--- But the default generator for trace (RanTrace) often cannot discover counter example like this.
