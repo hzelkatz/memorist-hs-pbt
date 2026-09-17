@@ -585,12 +585,11 @@ filterM tf txs = do
         NilT -> return NilT
         ConsT ty tys -> do
             f <- force tf
-            zs <- filterM tf tys
             b <- f ty
             if b then do
-                tzs <- lazy $ return zs
+                tzs <- lazy $ filterM tf tys
                 return $ ConsT ty tzs
-            else return zs
+            else filterM tf tys
 
 {-
     zipWith :: (a->b->c) -> [a]->[b]->[c]
