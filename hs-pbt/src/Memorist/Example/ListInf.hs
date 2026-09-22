@@ -29,13 +29,15 @@ scanl                   = scanlGo
 scanlM :: Th (Th b -> Th a -> MemoristM b) -> Th b -> Th (ListT a) -> MemoristM (ListT b)
 scanlM tf tq tl = do
     tick
-    l <- force tl
-    tzs <- lazy $ case l of
-                NilT -> return NilT
-                ConsT tx txs -> do
-                        f <- force tf
-                        tq' <- lazy $ f tq tx
-                        scanlM tf tq' txs
+    tzs <- lazy $ do
+        l <- force tl
+        case l of
+            NilT -> return NilT
+            ConsT tx txs -> do
+                tq' <- lazy $ do
+                    f <- force tf
+                    f tq tx
+                scanlM tf tq' txs
     return $ ConsT tq tzs
 
 
