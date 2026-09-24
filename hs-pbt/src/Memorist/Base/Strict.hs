@@ -63,8 +63,8 @@ genName :: Monad m => MemoristT m ThName
 genName = do
     n <- get
     put $ n + 1
-    return $ getName n
+    return $ toThName n
 
 instance MSt Int where
     initstate = 0
-    getName = fromInt
+    toThName = fromInt

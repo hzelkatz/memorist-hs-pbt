@@ -4,7 +4,8 @@ import Memorist.Memorist as M
 import Memorist.Data.List
 import Memorist.Example.Util
 import Test.QuickCheck as QC
-    ( quickCheck, Property, NonEmptyList(getNonEmpty), (.&&.), (==>), noShrinking )
+    ( quickCheck, Property, NonEmptyList(getNonEmpty), InfiniteList (..)
+    , (.&&.), (==>), noShrinking )
 
 import Prelude hiding (mapM)
 
@@ -93,10 +94,11 @@ qc_appendCost = quickCheck $ \(xs :: [Int]) (ys :: [Int]) ->
 -- but the issue is because the bound is specified with `length` (which is
 -- strict in its argument) on the first input list to the appending function.
 -- If we consider a looser bound such as the one below, it works perfectly fine.
-qc_appendInfOk :: IO ()
-qc_appendInfOk = quickCheck $
-    fromPure2 appendM xs ys `upperboundby` \_ d -> sizeD 1 d
-    where (xs, ys) = ([1,2..]::[Int], [1,2..]::[Int])
+qc_appendInf :: IO ()
+qc_appendInf = quickCheck $ \ (xs :: InfiniteList [Int]) (ys :: InfiniteList [Int]) ->
+    let xs' = getInfiniteList xs
+        ys' = getInfiniteList ys
+    in fromPure2 appendM xs' ys' `upperboundby` \_ d -> sizeD 1 d
 
 -- appendM_test :: Cost
 -- appendM_test = infcost (fromPure2 appendM ([1,2..]::[Int]) ([1,2..]::[Int])) minDemand
@@ -147,6 +149,19 @@ qc_takeBound = quickCheck (prop :: Int -> [Int] -> QC.Property)
 qc_takeBound' :: IO ()
 qc_takeBound' = quickCheck $ \n (xs :: [Int]) ->
     fromPure2 takeM n xs `upperboundby` \_ d -> min (max 1 (n + 1)) (sizeD 1 d)
+
+-- In particular the above bound works for infinite lists as well.
+qc_takeBoundInf :: IO ()
+qc_takeBoundInf = quickCheck $ \n (xs :: InfiniteList [Int]) ->
+    let xs' = getInfiniteList xs in
+    fromPure2 takeM n xs' `upperboundby` \_ d -> min (max 1 (n + 1)) (sizeD 1 d)
+
+-- This below should also work, but one should be careful due to the use of
+-- length in the bound. It works only for finite lists, and it happens that
+-- the default generator for lists always produces finite lists.
+qc_takeBoundFin :: IO ()
+qc_takeBoundFin = quickCheck $ \n (xs :: [Int]) ->
+    fromPure2 takeM n xs `upperboundby` \_ _ -> min (max 1 (n + 1)) (length xs + 1)
 
 --------------------------------------------------------------------------------
 

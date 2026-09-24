@@ -114,11 +114,11 @@ instance Monad m => MonadAnnot (AnnotT m) where
 -- | Class for states of the Memorist monad
 class MSt a where
     initstate :: a
-    getName :: a -> ThName
+    toThName :: a -> ThName
 
 instance MSt ThName where
     initstate = nzero
-    getName = id
+    toThName = id
 
 
 class MonadAnnot m => MonadMemorist m where
