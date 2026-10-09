@@ -74,8 +74,9 @@ factc n = infcost (fromPure1 factsM n) fullDemand
 enumFromM :: Num a => Th a -> MemoristM (ListT a)
 enumFromM tn = do
     tick
-    n <- force tn
-    tn1 <- lazy $ return $ n + 1
+    tn1 <- lazy $ do
+        n <- force tn
+        return $ n + 1
     tns <- lazy $ enumFromM tn1
     return $ ConsT tn tns
 

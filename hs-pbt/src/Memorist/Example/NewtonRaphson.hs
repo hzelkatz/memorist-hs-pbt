@@ -12,12 +12,28 @@ import Memorist.Example.Util
 import Test.QuickCheck (Positive (getPositive), chooseInt, forAll, noShrinking)
 
 
+-- The original algorithm
+
 next :: Fractional a => a -> a -> a
 next n x = (x + n/x)/2
 
 repeatly :: (t -> t) -> t -> [t]
 repeatly f a = a : repeatly f (f a)
 
+within :: (Ord a, Num a) => a -> [a] -> a
+within eps (a : (b : rest)) =
+    if abs (a - b) <= eps then b
+    else within eps (b : rest)
+
+sqrtNR :: (Ord a, Fractional a) => a -> a -> a -> a
+sqrtNR a0 eps n = within eps (repeatly (next n) a0)
+
+sqrtNR' :: (Ord a, Floating a) => a -> a -> a
+sqrtNR' eps n = sqrtNR (2**(logBase 2 n / 2)) eps n
+
+-- ------------------------------------------------
+
+-- Translated:
 
 -- One typical cost model is the number of iterations.
 -- Hence we count in this function modelling the iterations, and only here.
@@ -44,17 +60,6 @@ repeatlyM fM ta = do
     tl <- lazy $ repeatlyM fM ta1
     return $ ConsT ta tl
 
-
-within :: (Ord a, Num a) => a -> [a] -> a
-within eps (a : (b : rest)) =
-    if abs (a - b) <= eps then b
-    else within eps (b : rest)
-
-sqrtNR :: (Ord a, Fractional a) => a -> a -> a -> a
-sqrtNR a0 eps n = within eps (repeatly (next n) a0)
-
-sqrtNR' :: (Ord a, Floating a) => a -> a -> a
-sqrtNR' eps n = sqrtNR (2**(logBase 2 n / 2)) eps n
 
 withinM :: (Ord b, Num b) => Th b -> Th (ListT b) -> MemoristM b
 withinM teps tas = do

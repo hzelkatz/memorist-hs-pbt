@@ -4,8 +4,10 @@ import Memorist.Memorist as M
 import Memorist.Data.List
 import Memorist.Example.Util
 import Test.QuickCheck as QC
-    ( quickCheck, Property, NonEmptyList(getNonEmpty), InfiniteList (..)
-    , (.&&.), (==>), noShrinking )
+    ( quickCheck, Property, arbitrary, Gen, sized
+    , NonEmptyList(getNonEmpty), InfiniteList (..)
+    , chooseInt, vectorOf
+    , (.&&.), (==>), forAll, noShrinking )
 
 import Prelude hiding (mapM)
 
@@ -367,8 +369,8 @@ foldrM tk tz txs = do
     case xs of
         NilT -> force tz
         ConsT ty tys -> do
-            k <- force tk
             ta <- lazy $ foldrM tk tz tys
+            k <- force tk
             k ty ta
 
 {-
@@ -385,8 +387,9 @@ foldlM tk tz txs = do
     case xs of
         NilT -> force tz
         ConsT ty tys -> do
-            k <- force tk
-            tz' <- lazy $ k tz ty
+            tz' <- lazy $ do
+                k <- force tk
+                k tz ty
             foldlM tk tz' tys
 
 {-
@@ -472,8 +475,9 @@ mapMM tf txs = do
     case xs of
         NilT -> return NilT
         ConsT ty tys -> do
-            f <- force tf
-            tz <- lazy $ f ty
+            tz <- lazy $ do
+                f <- force tf
+                f ty
             tzs <- lazy $ mapMM tf tys
             return $ ConsT tz tzs
 
@@ -520,10 +524,8 @@ succM tn = do
 concatMapM :: Th (Th a -> MemoristM (ListT b)) -> Th (ListT a) -> MemoristM (ListT b)
 concatMapM tf txs = do
     tick
-    f <- force tf
     g <- return $ curryKM $ appendM
-    k <- composeM g f
-    tk <- lazy $ return $ uncurryKM k
+    tk <- lazy $ return . uncurryKM =<< composeM g =<< force tf
     tn <- lazy $ return NilT
     foldrM tk tn txs
 
@@ -579,8 +581,9 @@ qcN_cmsM1Bound n = quickCheckN n $ \(xs :: [Int]) ->
 
 -- If we test for slightly larger input, we can hope for a more informative counterexample.
 qcN_cmsM2BoundWrong :: Int -> IO ()
-qcN_cmsM2BoundWrong n = quickCheckN n $ \(xs :: [Int]) -> length xs > 10 ==>
-    fromPure1 cmsM2 xs `upperboundby` \_ d -> 4 * sizeD 1 d + 1
+qcN_cmsM2BoundWrong n = quickCheckN n $ forAll larger $ \xs ->
+        fromPure1 cmsM2 xs `upperboundby` \_ d -> 4 * sizeD 1 d + 1
+    where larger = sized $ \k -> chooseInt (10, k + 10) >>= \m -> vectorOf m arbitrary :: Gen [Int]
 
 qcN_cmsM2Bound :: Int -> IO ()
 qcN_cmsM2Bound n = quickCheckN n $ \(xs :: [Int]) ->
@@ -631,7 +634,8 @@ zipWithM tf txs tys = do
             case ys of
                 NilT -> return NilT
                 ConsT ty tys' -> do
-                    f <- force tf
-                    tz <- lazy $ f tx ty
+                    tz <- lazy $ do
+                        f <- force tf
+                        f tx ty
                     tzs <- lazy $ zipWithM tf txs' tys'
                     return $ ConsT tz tzs
