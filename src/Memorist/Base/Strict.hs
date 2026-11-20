@@ -6,7 +6,12 @@
 
 {-# OPTIONS_GHC -Wno-orphans #-}
 
-module Memorist.Base.Strict where
+module Memorist.Base.Strict
+    ( MemoristM
+    , MemoristT
+    , runMT
+    )
+where
 
 import Memorist.Base.Thunk
 import Memorist.Base.Core
@@ -19,7 +24,10 @@ type MemoristM = MemoristT Identity
 
 -- In the basic version, the thunk name is just a natural number.
 -- The state is thus of Int type.
-newtype MemoristT m a = MemoristT { runMT :: MemoristBaseT Int m a }
+newtype MemoristT m a = MemoristT (MemoristBaseT Int m a)
+
+runMT :: MemoristT m a -> MemoristBaseT Int m a
+runMT (MemoristT m) = m
 
 instance Functor m => Functor (MemoristT m) where
     fmap f = MemoristT . fmap f . runMT
@@ -30,10 +38,6 @@ instance Monad m => Applicative (MemoristT m) where
 
 instance Monad m => Monad (MemoristT m) where
     m >>= k = MemoristT $ runMT m >>= runMT . k
-
-instance Monad m => MonadState Int (MemoristT m) where
-    get = MemoristT $ get
-    put = MemoristT . put
 
 instance Monad m => MonadWriter Annot (MemoristT m) where
     tell = MemoristT . tell
@@ -61,8 +65,8 @@ instance Memorist Int (MemoristT Identity) where
 
 genName :: Monad m => MemoristT m ThName
 genName = do
-    n <- get
-    put $ n + 1
+    n <- MemoristT get
+    MemoristT $ put $ n + 1
     return $ toThName n
 
 instance MSt Int where
