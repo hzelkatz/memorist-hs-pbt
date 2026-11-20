@@ -4,7 +4,12 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FlexibleInstances #-}
 
-module Memorist.Base.ANT where
+module Memorist.Base.ANT
+    ( MemoristM
+    , MemoristT
+    , runMT
+    )
+where
 
 import Memorist.Base.Thunk
 import Memorist.Base.Core
@@ -15,7 +20,10 @@ import Control.Monad.Writer.Lazy
 
 type MemoristM = MemoristT Identity
 
-newtype MemoristT m a = MemoristT { runMT :: MemoristBaseT ThName m a }
+newtype MemoristT m a = MemoristT (MemoristBaseT ThName m a)
+
+runMT :: MemoristT m a -> MemoristBaseT ThName m a
+runMT (MemoristT m) = m
 
 instance Functor m => Functor (MemoristT m) where
     fmap f = MemoristT . fmap f . runMT
@@ -26,10 +34,6 @@ instance Monad m => Applicative (MemoristT m) where
 
 instance Monad m => Monad (MemoristT m) where
     m >>= k = MemoristT $ runMT m >>= runMT . k
-
-instance Monad m => MonadState ThName (MemoristT m) where
-    get = MemoristT $ get
-    put = MemoristT . put
 
 instance Monad m => MonadWriter Annot (MemoristT m) where
     tell = MemoristT . tell
@@ -58,14 +62,14 @@ instance Memorist ThName (MemoristT Identity) where
 
 enclose :: Monad m => MemoristT m a -> MemoristT m (Annotated a)
 enclose m = do
-    n <- get
-    put $ nshift n
+    n <- MemoristT get
+    MemoristT $ put $ nshift n
     xa <- wrapA m
-    put n
+    MemoristT $ put n
     return xa
 
 genName :: Monad m => MemoristT m ThName
 genName = do
-    n <- get
-    put $ nnext n
+    n <- MemoristT get
+    MemoristT $ put $ nnext n
     return n
