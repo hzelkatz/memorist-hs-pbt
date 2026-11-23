@@ -1,4 +1,4 @@
-{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE UndecidableInstances #-}
 
@@ -23,7 +23,7 @@ instance Monad Annotated where
     (Annotated x a) >>= k = let r = k x in r {annot = a `add` annot r}
 
 instance MonadWriter Annot Annotated where
-    tell a = Annotated () a
+    tell = Annotated ()
     listen (Annotated x a) = Annotated (x, a) a
     pass (Annotated (x, f) a) = Annotated x (f a)
 
@@ -72,9 +72,7 @@ instance Monad m => MonadWriter Annot (AnnotT m) where
 
 -- NOTE to self: this requires FlexibleInstances and UndecidableInstances
 instance MonadState s m => MonadState s (AnnotT m) where
-    get = AnnotT $ do
-        s <- get
-        return $ pure s
+    get = AnnotT (pure <$> get)
 
     put x = AnnotT $ do
         put x
@@ -130,7 +128,7 @@ class MonadAnnot m => MonadMemorist m where
     tick :: m ()
     tick = annotate () (fromCost onetick)
 
-class (MSt s, MonadState s m, MonadMemorist m) => Memorist s m where
+class (MSt s, MonadMemorist m) => Memorist s m | m -> s where
     runM :: m a -> s -> (Annotated a, s)
 
 
@@ -158,7 +156,7 @@ instance Monad m => Monad (MemoristBaseT s m) where
 
 -- NOTE to self: this requires FlexibleInstances
 instance Monad m => MonadState s (MemoristBaseT s m) where
-    get = MemoristBaseT $ get
+    get = MemoristBaseT get
     put = MemoristBaseT . put
 
 instance Monad m => MonadWriter Annot (MemoristBaseT s m) where
