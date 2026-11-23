@@ -11,42 +11,40 @@ import Test.QuickCheck as QC
 
 import Prelude hiding (mapM)
 
--- head
 {-
+    head :: [a] -> a
     head (x:_) = x
-    head []    = error ...
 -}
 headM :: Th (ListT a) -> MemoristM a
 headM txs = do
     tick
     xs <- force txs
     case xs of
-        NilT -> error "empty list"
         ConsT tx _ -> force tx
+        _ -> error "source pattern match failure"
 
 qc_headCost :: IO ()
 qc_headCost = quickCheck $ \(xs :: NonEmptyList Int) ->
     fromPure1 headM (getNonEmpty xs) `exactly` \_ _ -> 1 :: Integer
 
--- tail
 {-
+    tail :: [a] -> [a]
     tail (_:xs) = xs
-    tail []     = error ...
 -}
 tailM :: Th (ListT a) -> MemoristM (ListT a)
 tailM txs = do
     tick
     xs <- force txs
     case xs of
-        NilT -> error "empty list"
         ConsT _ tys -> force tys
+        _ -> error "source pattern match failure"
 
 qc_tailCost :: IO ()
 qc_tailCost = quickCheck $ \(xs :: NonEmptyList Int) ->
     fromPure1 tailM (getNonEmpty xs) `exactly` \_ _ -> 1 :: Integer
 
--- append
 {-
+    (++) :: [a] -> [a] -> [a]
     (++) []     ys = ys
     (++) (x:xs) ys = x : xs ++ ys
 -}
@@ -80,7 +78,7 @@ prop_appendBound xs ys =
 qcN_appendBound :: Int -> IO ()
 qcN_appendBound n = quickCheckN n (prop_appendBound :: [Int] -> [Int] -> Property)
 
--- A more exact specification
+-- A more exact specification (when the first list is finite)
 qc_appendCost :: IO ()
 qc_appendCost = quickCheck $ \(xs :: [Int]) (ys :: [Int]) ->
     fromPure2 appendM xs ys `exactly` \_ d -> min (sizeD 1 d) (length xs + 1)
@@ -108,6 +106,9 @@ qc_appendInf = quickCheck $ \ (xs :: InfiniteList [Int]) (ys :: InfiniteList [In
 
 -- take
 {-
+    -- While the Prelude library version is:
+
+    take :: Int -> [a] -> [a]
     take n xs | 0 < n     = unsafeTake n xs
               | otherwise = []
 
@@ -116,13 +117,13 @@ qc_appendInf = quickCheck $ \ (xs :: InfiniteList [Int]) (ys :: InfiniteList [In
     unsafeTake 1   (x: _) = [x]
     unsafeTake m   (x:xs) = x : unsafeTake (m - 1) xs
 
--- But we look at this alternative version for simplicity:
+    -- We look at this alternative version for simplicity:
 
     take n xs =
         if 0 < n then
             case xs of
                 []     -> []
-                (y:ys) -> y : take (m - 1) ys
+                (y:ys) -> y : take (n - 1) ys
         else []
 -}
 -- For simplicity, we only study the number of times takeM is called during recursion,
@@ -135,12 +136,12 @@ takeM tn txs = do
     if 0 < n then do
         xs <- force txs
         case xs of
-            NilT         -> return NilT
+            NilT         -> pure NilT
             ConsT ty tys -> do
-                tn1 <- lazy $ return $ n - 1
-                tzs <- lazy $ takeM tn1 tys
-                return $ ConsT ty tzs
-    else return NilT
+                tn1 <- lazy (pure (n - 1))
+                tzs <- lazy (takeM tn1 tys)
+                pure (ConsT ty tzs)
+    else pure NilT
 
 -- Both bounds should hold:
 
@@ -167,25 +168,38 @@ qc_takeBoundFin = quickCheck $ \n (xs :: [Int]) ->
 
 --------------------------------------------------------------------------------
 
--- reverse
 {-
+    reverse :: [a] -> [a]
     reverse l = rev l []
     where
         rev []     a = a
         rev (x:xs) a = rev xs (x:a)
 -}
+-- reverseM :: Th (ListT a) -> MemoristM (ListT a)
+-- reverseM tl = tick >> lazy (return NilT) >>= revM tl
+--
+-- revM :: Th (ListT a) -> Th (ListT a) -> MemoristM (ListT a)
+-- revM txs ta = do
+--     tick
+--     xs <- force txs
+--     case xs of
+--         NilT -> force ta
+--         ConsT tx txs' -> do
+--             ta' <- lazy $ return $ ConsT tx ta
+--             revM txs' ta'
 reverseM :: Th (ListT a) -> MemoristM (ListT a)
-reverseM tl = tick >> lazy (return NilT) >>= revM tl
-
-revM :: Th (ListT a) -> Th (ListT a) -> MemoristM (ListT a)
-revM txs ta = do
+reverseM tl = do
     tick
-    xs <- force txs
-    case xs of
-        NilT -> force ta
-        ConsT tx txs' -> do
-            ta' <- lazy $ return $ ConsT tx ta
-            revM txs' ta'
+    let rev txs ta = do
+            tick
+            xs <- force txs
+            case xs of
+                NilT -> force ta
+                ConsT tx txs' -> do
+                    ta' <- lazy (pure (ConsT tx ta))
+                    rev txs' ta'
+    tn <- lazy (pure NilT)
+    rev tl tn
 
 -- This implementation iterates over the input list exactly once regardless of
 -- the demand on value, and hence the cost specification below.
@@ -197,13 +211,14 @@ prop_reverseCost xs = fromPure1 reverseM xs `exactly` \_ _ -> length xs + 2
 qcN_reverseCost :: Int -> IO ()
 qcN_reverseCost n = quickCheckN n (prop_reverseCost :: [Int] -> QC.Property)
 
--- NOTE: compact version
+-- (A compact version for the sake of presentation)
 qc_reverseCost :: IO ()
 qc_reverseCost = quickCheck $ \(xs :: [Int]) ->
     fromPure1 reverseM xs `exactly` \_ _ -> length xs + 2
 
 -- In comparison, this is a naïve implementation of reverse
 {-
+    reverseNaive :: [a] -> [a]
     reverseNaive []     = []
     reverseNaive (x:xs) = reverseNaive xs ++ [x]
 -}
@@ -212,19 +227,13 @@ reverseNaiveM txs = do
     tick
     xs <- force txs
     case xs of
-        NilT -> return NilT
+        NilT -> pure NilT
         ConsT tx txs' -> do
-            tr <- lazy $ reverseNaiveM txs'
-            tn <- lazy $ return NilT
-            ty <- lazy $ return $ ConsT tx tn
+            tr <- lazy (reverseNaiveM txs')
+            ty <- lazy (do
+                tn <- lazy (pure NilT)
+                pure (ConsT tx tn))
             appendM tr ty
-
--- rc1 :: [Int] -> ListD Int -> (Cost, Int, Annotated (ListT Int))
--- rc1 x d = (infcost m (\_ -> d), c, v)
---     where m = fromPure1 reverseNaiveM x
---           v = eval m initstate
---           c = 2 * (length x + 1)
---         --   c = (sizeD 0 d + 1) * (length x + 1)
 
 -- The naïve implementation is known to belong to O(n^2).
 
@@ -277,19 +286,20 @@ qcN_compareReverse n = quickCheckN n (prop_compareReverse :: [Int] -> QC.Propert
 
 -- repeat
 {-
+    -- The Prelude library version is defined using tying-the-knot pattern
+
     repeat x = xs where xs = x : xs
-    --- (alternatively) --->
+
+    -- which is not supported yet in the framework.
+    -- For the current case study we consider:
+
     repeat x = x : repeat x
-    --- (A-normalize) --->
-    repeat x = let xs = repeat x in x : xs
 -}
 repeatM :: Th a -> MemoristM (ListT a)
 repeatM tx = do
     tick
-    txs <- lazy $ repeatM tx
-    return $ ConsT tx txs
--- -- Or oneliner:
--- repeatM tx = tick >> lazy (repeatM tx) >>= return . ConsT tx
+    txs <- lazy (repeatM tx)
+    pure (ConsT tx txs)
 
 -- repeatM_cost :: ReprDemandArb a => a -> Dem (Rep [a]) -> Cost
 -- repeatM_cost = infcostFromPure1 repeatM'
@@ -315,8 +325,8 @@ prop_repeatCost x = fromPure1 repeatM x `exactly` \_ d -> sizeD 1 d
 -- In principle it may be possible for it to keep generating demand needing the next thunk,
 -- i.e. a 'potentially infinite demand', though we have not observed this in practice.
 -- Generally speaking, even if it is possible, it should be very unlikely.
-qc_repeatCost :: Int -> IO ()
-qc_repeatCost n = quickCheckN n (prop_repeatCost :: Int -> QC.Property)
+qcN_repeatCost :: Int -> IO ()
+qcN_repeatCost n = quickCheckN n (prop_repeatCost :: Int -> QC.Property)
 
 
 -- replicate
@@ -326,18 +336,14 @@ qc_repeatCost n = quickCheckN n (prop_repeatCost :: Int -> QC.Property)
 replicateM :: Th Int -> Th a -> MemoristM (ListT a)
 replicateM tn tx = do
     tick
-    txs <- lazy $ repeatM tx
+    txs <- lazy (repeatM tx)
     takeM tn txs
 
 qcN_replicateBound :: Int -> IO ()
 qcN_replicateBound n = quickCheckN n $ \(m :: Int) (x :: Int) ->
     fromPure2 replicateM m x `upperboundby` \_ _ -> 2 * max 1 (n + 1)
 
-qc_replicateBound :: IO ()
-qc_replicateBound = quickCheck $ \(n :: Int) (x :: Int) ->
-    fromPure2 replicateM n x `upperboundby` \_ _ -> 2 * max 1 (n + 1)
-
--- NOTE: The two below also work though not very interesting
+-- NOTE: The two below also work
 
 qcN_replicateBound1 :: Int -> IO ()
 qcN_replicateBound1 n = quickCheckN n $ \(x :: Int) ->
@@ -444,23 +450,19 @@ qcN_concatLMBound :: Int -> IO ()
 qcN_concatLMBound n = quickCheckN n $ \(xss :: [[Int]]) ->
     fromPure1 concatLM xss `upperboundby` \_ d -> (sizeD 1 d + 1) * (length xss + 1)
 
--- NOTE: Testing with larger constants;
--- Eg. 2 * (length xss + length (concat xss)) + 8
---
--- ghci> qcN_concatLMUBound 1000
--- *** Failed! Falsified (after 12 tests and 19 shrinks):    
--- [[0],[0,0,0],[],[],[]]
--- ConsD (Need 0) (Need (ConsD (Need 0) (Need (ConsD (Need 0) (Need (ConsD (Need 0) (Need NilD)))))))
---
--- ttt2 = (cost_concatLM xss (\_ -> d), 2 * length xss + length (concat xss) + 2)
---     where xss = [[0],[0,0,0],[],[],[]] :: [[Int]]
---           d = ConsD (Need 0) (Need (ConsD (Need 0) (Need (ConsD (Need 0) (Need (ConsD (Need 0) (Need NilD)))))))
--- -- (25, 16)
--- Slightly bigger difference but...
---
--- For comparison, a handpicked example
--- let xss = ([[1..20],[2..16],[3..12],[4..8],[5]]::[[Int]]) in (cost_concatLM xss fullDemand, 2 * length xss + length (concat xss) + 2)
--- -- (162,63)
+{-
+-- Testing with larger constants, eg. 2 * (length xss + length (concat xss)) + 8
+
+ghci> qcN_concatLMUBound 1000
+*** Failed! Falsified (after 12 tests and 19 shrinks):    
+[[0],[0,0,0],[],[],[]]
+ConsD (Need 0) (Need (ConsD (Need 0) (Need (ConsD (Need 0) (Need (ConsD (Need 0) (Need NilD)))))))
+
+-- Here's a handpicked example that exhibits larger gap:
+
+let xss = ([[1..20],[2..16],[3..12],[4..8],[5]]::[[Int]]) in (cost_concatLM xss fullDemand, 2 * length xss + length (concat xss) + 2)
+-- (162,63)
+-}
 
 
 {-
@@ -535,10 +537,6 @@ concatMapM tf txs = do
 -}
 concatMapM' :: Th (Th a -> MemoristM (ListT b)) -> Th (ListT a) -> MemoristM (ListT b)
 concatMapM' tf txs = tick >> (concatM =<< lazy (mapMM tf txs))
--- concatMapM' tf txs = do
---     tick
---     tys <- lazy $ mapMM tf txs
---     concatM tys
 
 singletonM :: Th a -> MemoristM (ListT a)
 singletonM tx = do

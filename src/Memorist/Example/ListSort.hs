@@ -14,11 +14,11 @@ import Test.QuickCheck as QC ( Property, SortedList (..), NonNegative (..)
 {-
 insertionSort :: Ord a => [a] -> [a]
 insertionSort [] = []
-insertionSort (x:xs) = insert x $ insertionSort xs
+insertionSort (x:xs) = insert x (insertionSort xs)
 
 insert :: Ord a => a -> [a] -> [a]
-insert x []     = [x]
-insert x (y:ys) = if x <= y then x:(y:ys) else y : insert x ys
+insert x []         = [x]
+insert x ys@(y:ys') = if x <= y then x:ys else y : insert x ys'
 -}
 
 -- qcN_insertionSortCorrect n = quickCheckN n $ \(xs :: [Int]) ->
@@ -28,9 +28,9 @@ insertionSortM :: Ord a => Th (ListT a) -> MemoristM (ListT a)
 insertionSortM txs = do
     xs <- force txs
     case xs of
-        NilT -> return NilT
+        NilT -> pure NilT
         ConsT tx txs' -> do
-            tys <- lazy $ insertionSortM txs'
+            tys <- lazy (insertionSortM txs')
             insertM tx tys
 
 insertM :: Ord a => Th a -> Th (ListT a) -> MemoristM (ListT a)
@@ -38,16 +38,17 @@ insertM tx tys = do
     ys <- force tys
     case ys of
         NilT -> do
-            tnil <- lazy $ return NilT
-            return $ ConsT tx tnil
+            tnil <- lazy (pure NilT)
+            pure (ConsT tx tnil)
         ConsT ty tys' -> do
             x <- force tx
             y <- force ty
             tick    -- count the number of comparisons made
-            if x <= y then return $ ConsT tx tys
+            if x <= y then pure (ConsT tx tys)
             else do
-                tzs <- lazy $ insertM tx tys'
-                return $ ConsT ty tzs
+                tzs <- lazy (insertM tx tys')
+                pure (ConsT ty tzs)
+
 
 qcN_insertUBound :: Int -> IO ()
 qcN_insertUBound n = quickCheckN n $ \(x::Int) (xs::[Int]) ->
@@ -183,12 +184,12 @@ qcN_insertionSortSortedCostWrong n = quickCheckN n $ \(xs :: SortedList Int) ->
 
 {-
 mergesort :: Ord a => [a] -> [a]
-mergesort = mergeall . split
+mergesort = mergeall (split xs)
 
 mergeall :: Ord a => [[a]] -> [a]
 mergeall [] = []
 mergeall [xs] = xs
-mergeall xss = mergeall $ mergepairs xss
+mergeall xss = mergeall (mergepairs xss)
 
 mergepairs :: Ord a => [[a]] -> [[a]]
 mergepairs [] = []
@@ -204,20 +205,28 @@ merge (x:xs) (y:ys) =
 split :: [a] -> [[a]]
 split [] = []
 split (x:xs) = [x] : split xs
-
-qcN_mergesortCorrect n = quickCheckN n $ \(xs :: [Int]) ->
-    correct (fromPure1 mergesortM xs) (mergesort xs)
 -}
 
+-- qcN_mergesortCorrect n = quickCheckN n $ \(xs :: [Int]) ->
+--     correct (fromPure1 mergesortM xs) (mergesort xs)
+
 mergesortM :: Ord a => Th (ListT a) -> MemoristM (ListT a)
-mergesortM txs = mergeallM =<< lazy (splitM txs)
+mergesortM txs = do
+    t <- lazy (splitM txs)
+    mergeallM t
+{-
+The above is produced by the automated translator after prettifying and removing tick.
+We can have a more concise version as below which resembles the source definition even more:
+
+    mergesortM txs = mergeallM =<< lazy (splitM txs)
+-}
 
 mergeallM :: Ord a => Th (ListT (ListT a)) -> MemoristM (ListT a)
 mergeallM txss = do
     xss <- force txss
     case xss of
         -- case []
-        NilT -> return NilT
+        NilT -> pure NilT
         ConsT tys tyss -> do
             yss <- force tyss
             case yss of
@@ -225,7 +234,7 @@ mergeallM txss = do
                 NilT -> force tys
                 -- case _
                 _ -> do
-                    tzss <- lazy $ mergepairsM txss
+                    tzss <- lazy (mergepairsM txss)
                     mergeallM tzss
 
 mergepairsM :: Ord a => Th (ListT (ListT a)) -> MemoristM (ListT (ListT a))
@@ -233,48 +242,85 @@ mergepairsM txss = do
     xss <- force txss
     case xss of
         -- case []
-        NilT -> return NilT
+        NilT -> pure NilT
         ConsT tys tyss -> do
             yss <- force tyss
             case yss of
                 -- case [_]
-                NilT -> return xss
+                NilT -> pure xss
                 -- case (_:_:_)
                 ConsT tys' tyss' -> do
-                    tzs <- lazy $ mergeM tys tys'
-                    tzss <- lazy $ mergepairsM tyss'
-                    return $ ConsT tzs tzss
+                    tzs <- lazy (mergeM tys tys')
+                    tzss <- lazy (mergepairsM tyss')
+                    pure (ConsT tzs tzss)
 
 mergeM :: Ord a => Th (ListT a) -> Th (ListT a) -> MemoristM (ListT a)
 mergeM txs tys = do
     xs <- force txs
-    ys <- force tys
     case xs of
-        NilT -> return ys
-        ConsT tx txs' ->
+        NilT -> force tys
+        ConsT tx txs' -> do
+            ys <- force tys
             case ys of
-                NilT -> return xs
+                NilT -> pure xs
                 ConsT ty tys' -> do
                     x <- force tx
                     y <- force ty
                     tick    -- tick here to count the comparisons made
                     if x <= y then do
                         tzs <- lazy $ mergeM txs' tys
-                        return $ ConsT tx tzs
+                        pure $ ConsT tx tzs
                     else do
                         tzs <- lazy $ mergeM txs tys'
-                        return $ ConsT ty tzs
+                        pure $ ConsT ty tzs
+{-
+-- For `mergeM`, we have used a manually restructured version to reduce overhead
+-- of repeated forcing (which does not otherwise alter the cost derivation since
+-- repeatedly forcing the same thunk does not incur duplicated usage and cost in
+-- the our framework).
+-- The translator actually produces the following (after prettifying and moving the tick).
+-- The more complicated structure is due to how the translator process pattern-matching
+-- in this specific case. We belive this should be further optimizable.
+
+mergeM txs tys = do
+    xs <- force txs
+    case xs of
+        NilT -> force tys
+        _ -> do
+            ys <- force tys
+            case ys of
+                NilT -> force txs
+                _ -> do
+                    xs <- force txs
+                    case xs of
+                        ConsT tx txs' -> do
+                            ys <- force tys
+                            case ys of
+                                ConsT ty tys' -> do
+                                    x <- force tx
+                                    y <- force ty
+                                    tick    -- manually insert tick
+                                    if x <= y then do
+                                        tzs <- lazy (mergeM txs' tys)
+                                        pure (ConsT tx tzs)
+                                    else do
+                                        tzs <- lazy (mergeM txs tys')
+                                        pure (ConsT ty tzs)
+                                _ -> error "source pattern match failure"
+                        _ -> error "source pattern match failure"
+-}
 
 splitM :: Th (ListT a) -> MemoristM (ListT (ListT a))
 splitM txs = do
     xs <- force txs
     case xs of
-        NilT -> return NilT
+        NilT -> pure NilT
         ConsT ty tys -> do
-            tnil <- lazy $ return NilT
-            tzs <- lazy $ return $ ConsT ty tnil
-            tzss <- lazy $ splitM tys
-            return $ ConsT tzs tzss
+            tz <- lazy (do
+                tn <- lazy (pure NilT)
+                pure (ConsT ty tn))
+            tzs <- lazy (splitM tys)
+            pure (ConsT tz tzs)
 
 -- We need to specify the bound on concrete cost, which is different from
 -- what it appears in specifications using complexity class.
