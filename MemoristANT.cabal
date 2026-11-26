@@ -1,15 +1,11 @@
 cabal-version:      3.0
 name:               MemoristANT
 version:            0.1.0.0
--- synopsis:
+synopsis:           Property-based testing of lazy cost
 -- description:
--- license:
--- license-file:
--- author:
--- maintainer:
--- copyright:
--- category:
--- build-type:         Simple
+license:            MIT
+license-file:       LICENSE
+build-type:         Simple
 -- extra-doc-files:
 -- extra-source-files:
 
@@ -52,5 +48,4 @@ library
         QuickCheck >=2.17 && < 3
     hs-source-dirs:
         src
-        -- src/extra
     default-language: GHC2021
