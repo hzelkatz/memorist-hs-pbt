@@ -55,8 +55,8 @@ appendM txs tys = do
     case xs of
         NilT -> force tys
         ConsT tx txs' -> do
-            tzs <- lazy $ appendM txs' tys
-            return $ ConsT tx tzs
+            tzs <- lazy (appendM txs' tys)
+            pure (ConsT tx tzs)
 
 -- An incorrect attempt (off by 1)
 prop_appendBoundAttempt :: ReprDemandArb a => [a] -> [a] -> Property
@@ -147,24 +147,24 @@ takeM tn txs = do
 
 qc_takeBound :: IO ()
 qc_takeBound = quickCheck (prop :: Int -> [Int] -> QC.Property)
-    where prop n xs = fromPure2 takeM n xs `upperboundby` \_ _ -> max 1 (n + 1)
+    where prop n xs = fromPure2 takeM n xs `upperboundby` \_ _ -> 1 + max 0 n
 
 qc_takeBound' :: IO ()
 qc_takeBound' = quickCheck $ \n (xs :: [Int]) ->
-    fromPure2 takeM n xs `upperboundby` \_ d -> min (max 1 (n + 1)) (sizeD 1 d)
+    fromPure2 takeM n xs `upperboundby` \_ d -> min (1 + max 0 n) (sizeD 1 d)
 
 -- In particular the above bound works for infinite lists as well.
 qc_takeBoundInf :: IO ()
 qc_takeBoundInf = quickCheck $ \n (xs :: InfiniteList [Int]) ->
     let xs' = getInfiniteList xs in
-    fromPure2 takeM n xs' `upperboundby` \_ d -> min (max 1 (n + 1)) (sizeD 1 d)
+    fromPure2 takeM n xs' `upperboundby` \_ d -> min (1 + max 0 n) (sizeD 1 d)
 
 -- This below should also work, but one should be careful due to the use of
 -- length in the bound. It works only for finite lists, and it happens that
 -- the default generator for lists always produces finite lists.
 qc_takeBoundFin :: IO ()
 qc_takeBoundFin = quickCheck $ \n (xs :: [Int]) ->
-    fromPure2 takeM n xs `upperboundby` \_ _ -> min (max 1 (n + 1)) (length xs + 1)
+    fromPure2 takeM n xs `upperboundby` \_ _ -> min (1 + max 0 n) (length xs + 1)
 
 --------------------------------------------------------------------------------
 
@@ -339,20 +339,28 @@ replicateM tn tx = do
     txs <- lazy (repeatM tx)
     takeM tn txs
 
+-- The specified bound is an intuitive combination of
+-- - the single tick intrinsic to replicate itself,
+-- - the upperbound on cost due to repeat producing part of lists up to the demand, and
+-- - the upperbound on cost due to take taking from (consuming) the produced list.
 qcN_replicateBound :: Int -> IO ()
-qcN_replicateBound n = quickCheckN n $ \(m :: Int) (x :: Int) ->
-    fromPure2 replicateM m x `upperboundby` \_ _ -> 2 * max 1 (n + 1)
+qcN_replicateBound k = quickCheckN k $ \(n :: Int) (x :: Int) ->
+    fromPure2 replicateM n x `upperboundby` \_ _ -> 1 + max 0 n + (1 + max 0 n)
 
--- NOTE: The two below also work
+qcN_replicateBound_full :: Int -> IO ()
+qcN_replicateBound_full k = quickCheckN k $ \(n :: Int) (x :: Int) ->
+    fromPure2 replicateM n x `exactlyWith` fullDemand $ \_ _ -> 2 + 2 * max 0 n
 
-qcN_replicateBound1 :: Int -> IO ()
-qcN_replicateBound1 n = quickCheckN n $ \(x :: Int) ->
-    fromPure2 replicateM n x `upperboundWith` fullDemand $ \_ _ -> 2 * max 1 (n + 1)
-
+-- If we take the demand into account, the cost can be entirely expressed
+-- in terms of the number of constructors demanded from the final result
+-- (plus 1 for the outermost tick from replicateM itself).
+-- Implicitly, this assumes reasonably that we can never demand more elements,
+-- i.e. a list of greater length, than can be constructed by replicate.
+-- This assumption is guaranteed by our implementation of the demand generator
+-- invoked by the `upperboundby` combinator.
 qcN_replicateBound' :: Int -> IO ()
-qcN_replicateBound' n = quickCheckN n $ \(x :: Int) ->
-    fromPure2 replicateM n x `upperboundby` \_ d ->
-        2 * min (max 1 (n + 1)) ((sizeD 0 d) + 1)
+qcN_replicateBound' k = quickCheckN k $ \(n :: Int)(x :: Int) ->
+    fromPure2 replicateM n x `upperboundby` \_ d -> 1 + 2 * sizeD 1 d
 
 --------------------------------------------------------------------------------
 

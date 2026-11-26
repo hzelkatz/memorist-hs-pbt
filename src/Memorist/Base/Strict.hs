@@ -1,5 +1,5 @@
 -- Based on original version of the Memorist Semantics as appeared in
--- Li et al. 2026 (https://doi.org/10.1007/978-3-032-22720-1_17)
+-- Li et al. (2026) (https://doi.org/10.1007/978-3-032-22720-1_17)
 
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FlexibleInstances #-}

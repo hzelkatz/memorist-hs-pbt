@@ -70,7 +70,7 @@ instance Monad m => MonadWriter Annot (AnnotT m) where
         xa <- runAnnotT m
         return $ pass xa
 
--- NOTE to self: this requires FlexibleInstances and UndecidableInstances
+-- NOTE to self: requires FlexibleInstances and UndecidableInstances
 instance MonadState s m => MonadState s (AnnotT m) where
     get = AnnotT (pure <$> get)
 
@@ -101,7 +101,6 @@ instance Monad m => MonadAnnot (AnnotT m) where
 -- instance MonadTick Annotated where
 --     tick = Annotated () (fromCost onetick)
 
--- -- NOTE to self: this helps in decl of MemoristBaseM as MonadTick
 -- -- instance MonadTick m => MonadTick (StateT s m) where
 -- --     tick = lift tick
 
@@ -154,7 +153,7 @@ instance Monad m => Applicative (MemoristBaseT s m) where
 instance Monad m => Monad (MemoristBaseT s m) where
     m >>= k = MemoristBaseT $ runMBT m >>= runMBT . k
 
--- NOTE to self: this requires FlexibleInstances
+-- NOTE to self: requires FlexibleInstances
 instance Monad m => MonadState s (MemoristBaseT s m) where
     get = MemoristBaseT get
     put = MemoristBaseT . put

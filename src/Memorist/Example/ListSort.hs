@@ -58,17 +58,17 @@ qcN_insertUBound n = quickCheckN n $ \(x::Int) (xs::[Int]) ->
 qcN_insertionSortBoundWrong :: Int -> IO ()
 qcN_insertionSortBoundWrong k = quickCheckN k $ \(xs :: [Int]) ->
     fromPure1 insertionSortM xs `upperboundby`
-        \_ _ -> let n = fromIntegral (length xs) in n * logBase 2 (max 1 n) + 1
+        \_ _ -> let n = fromIntegral (length xs) in 1 + n * logBase 2 (max 1 n)
 
 qcN_insertionSortBoundWrong' :: Int -> IO ()
 qcN_insertionSortBoundWrong' k = quickCheckN k $ noShrinking $ \(xs :: [Int]) ->
     fromPure1 insertionSortM xs `upperboundby`
-        \_ _ -> let n = fromIntegral (length xs) in n * logBase 2 (max 1 n) + 1
+        \_ _ -> let n = fromIntegral (length xs) in 1 + n * logBase 2 (max 1 n)
 
 qcN_insertionSortBoundWrong'' :: Int -> IO ()
 qcN_insertionSortBoundWrong'' k = quickCheckN k $ noShrinking $ \(xs :: [Int]) ->
     fromPure1 insertionSortM xs `upperboundWith` fullDemand $
-        \_ _ -> let n = fromIntegral (length xs) in n * logBase 2 (max 1 n) + 1
+        \_ _ -> let n = fromIntegral (length xs) in 1 + n * logBase 2 (max 1 n)
 
 -- We can give, e.g., the following upper bound on the computation cost in the worst case.
 -- This bound is not the tightest possible but intuitive enough.
