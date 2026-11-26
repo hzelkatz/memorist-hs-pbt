@@ -6,12 +6,9 @@ import Memorist.Memorist as M
 import Memorist.Data.List
 import Memorist.Example.Queue.Base as Q
 import Memorist.Example.List ( appendM, reverseM )
-import Memorist.Example.Util
+import Memorist.Example.Util ( quickCheckN )
 
 import Test.QuickCheck as QC
-
--- NOTE: only for internal testing
-import Control.Monad (replicateM_)
 
 
 data Bankers a = Bankers !Int [a] !Int [a]
@@ -227,6 +224,10 @@ prop_bankersRunTraceCost' q t =
 qcN_bankersRunTraceCost' :: Int -> IO ()
 qcN_bankersRunTraceCost' n = quickCheckN n (prop_bankersRunTraceCost' :: Bankers Int -> Trace1 Int -> Property)
 
+-- -----------------------------------------------------------------------------
+
+-- Additional tests:
+
 -- Fixed to full demand. NOTE: just for experiment; this does not hold in general.
 -- Asking for "full demand" actually violates the queue interface where elements
 -- are only accessed via dequque operation.
@@ -237,52 +238,3 @@ prop_bankersRunTraceCost1 t =
 
 qcN_bankersRunTraceCost1 :: Int -> IO ()
 qcN_bankersRunTraceCost1 n = quickCheckN n (prop_bankersRunTraceCost1 :: Trace1 Int -> Property)
-
--- -----------------------------------------------------------------------------
-
-batch_bankers :: Int -> Int -> IO ()
-batch_bankers k j = replicateM_ j $
-    putStrLn "qcN_bankersEnqAmortized" >> qcN_bankersEnqAmortized k
-    >>
-    putStrLn "qcN_bankersDeqAmortized" >> qcN_bankersDeqAmortized k
-    >>
-    -- putStrLn "qcN_bankersEnqAmortized1" >> qcN_bankersEnqAmortized1 k
-    -- >>
-    -- putStrLn "qcN_bankersDeqAmortized1" >> qcN_bankersDeqAmortized1 k
-    -- >>
-    putStrLn "qcN_bankersRunTraceCost" >> qcN_bankersRunTraceCost k
-    -- >>
-    -- putStrLn "qcN_bankersRunTraceCost'" >> qcN_bankersRunTraceCost' k
-
-qctestop :: Bankers Int -> Op Int -> Int -> IO ()
-qctestop q op k = quickCheckN 1 $ prop_bankersAmortized q op k
-
-qctesttrace :: Trace1 Int -> IO ()
-qctesttrace t = quickCheckN 1 $ prop_bankersRunTraceCost t
-
-qctesttrace' :: Bankers Int -> Trace1 Int -> IO ()
-qctesttrace' q t = quickCheckN 1 $ prop_bankersRunTraceCost' q t
-
-qctesttrace1 :: Trace1 Int -> IO ()
-qctesttrace1 t = quickCheckN 1 $ prop_bankersRunTraceCost1 t
-
-tracecost :: Bankers Int -> Trace1 Int -> Cost
-tracecost q t = infcost (runTraceFromPure q t) minDemand
-
-{-
-q1 :: Bankers Int
-q1 = Bankers 14 [3,-1,-18,9,14,9,18,7,-12,8,7,14,16,11] 2 [18,17]
-t1 :: RanTrace Int
-t1 = RanTrace $ Node Deq [Node (Enq (-5)) [Node Deq [Node (Enq 3) [Node (Enq (-7))[Node (Enq 0) []]]]]]
-
-q2 :: Bankers Int
-q2 = Bankers 14 [-9,0,6,-9,-10,5,-1,17,10,1,-6,-6,7,-5] 14 [-11,10,2,8,-12,7,-5,0,15,8,-12,11,5,-17]
-t2 :: RanTrace Int
-t2 = RanTrace $ Node (Enq 5) []
--- ^ This will fails RunTraceCost if we do not fix the demand to minDemand
-
-q3 :: Bankers Int
-q3 = Bankers 1 [1] 1 [2]
-t3 :: RanTrace Int
-t3 = RanTrace $ Node Deq [Node Deq []]
--}

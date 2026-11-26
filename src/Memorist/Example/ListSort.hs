@@ -5,9 +5,8 @@ module Memorist.Example.ListSort where
 import Memorist.Memorist as M
 import Memorist.Data.List
 import Memorist.Example.Util
-import Memorist.Example.List (takeM , mapMM)
-import Test.QuickCheck as QC ( Property, SortedList (..), NonNegative (..)
-                             , noShrinking, arbitrary, forAll, suchThat )
+-- import Memorist.Example.List
+import Test.QuickCheck as QC ( Property, SortedList (..), noShrinking, arbitrary, forAll )
 
 -- insertion sort
 
@@ -58,17 +57,17 @@ qcN_insertUBound n = quickCheckN n $ \(x::Int) (xs::[Int]) ->
 qcN_insertionSortBoundWrong :: Int -> IO ()
 qcN_insertionSortBoundWrong k = quickCheckN k $ \(xs :: [Int]) ->
     fromPure1 insertionSortM xs `upperboundby`
-        \_ _ -> let n = fromIntegral (length xs) in 1 + n * logBase 2 (max 1 n)
+        \_ _ -> let n = fromIntegral (length xs) in 1 + n * logBase 2 (max 1 n) :: Double
 
 qcN_insertionSortBoundWrong' :: Int -> IO ()
 qcN_insertionSortBoundWrong' k = quickCheckN k $ noShrinking $ \(xs :: [Int]) ->
     fromPure1 insertionSortM xs `upperboundby`
-        \_ _ -> let n = fromIntegral (length xs) in 1 + n * logBase 2 (max 1 n)
+        \_ _ -> let n = fromIntegral (length xs) in 1 + n * logBase 2 (max 1 n) :: Double
 
 qcN_insertionSortBoundWrong'' :: Int -> IO ()
 qcN_insertionSortBoundWrong'' k = quickCheckN k $ noShrinking $ \(xs :: [Int]) ->
     fromPure1 insertionSortM xs `upperboundWith` fullDemand $
-        \_ _ -> let n = fromIntegral (length xs) in 1 + n * logBase 2 (max 1 n)
+        \_ _ -> let n = fromIntegral (length xs) in 1 + n * logBase 2 (max 1 n) :: Double
 
 -- We can give, e.g., the following upper bound on the computation cost in the worst case.
 -- This bound is not the tightest possible but intuitive enough.

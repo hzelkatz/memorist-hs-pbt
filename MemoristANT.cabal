@@ -20,6 +20,7 @@ library
     import:           warnings
     exposed-modules:
         Memorist.Memorist
+        -- Memorist.MemoristStrict
         Memorist.Data.List
         Memorist.Example.List
         Memorist.Example.ListSort
@@ -39,7 +40,7 @@ library
         Memorist.Data.Interface.Data
         Memorist.Data.Interface.Demand
         Memorist.Infer.Infer
-        Memorist.Base.Strict
+        -- Memorist.Base.Strict
         Memorist.Example.Util
     -- No export:
         -- Memorist.Example.Test

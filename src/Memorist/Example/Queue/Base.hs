@@ -1,5 +1,3 @@
--- {-# OPTIONS_GHC -Wno-orphans #-}
-
 module Memorist.Example.Queue.Base where
 
 import Memorist.Memorist as M

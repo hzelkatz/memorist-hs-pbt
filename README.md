@@ -13,8 +13,6 @@ The framework is implemented in the functional language Haskell, specifically wi
 We have used GHC version 9.10.3, which can be installed using [`ghcup`](https://www.haskell.org/ghcup/) or [Stack](https://docs.haskellstack.org/en/stable/).
 The implementation might work with newer versions of GHC, although we have not tested yet.
 
-<!-- TODO: step-by-step instruction on how to install this version of GHC. -->
-
 This version of GHC also requires `cabal-install` version 3.10.2.0 or later.
 
 More information about GHC 9.10.3 can be found [here](https://www.haskell.org/ghc/download_ghc_9_10_3.html).
@@ -31,10 +29,6 @@ Alternatively, if `cabal` is preferred:
 ```
 cabal build
 ```
-
-The versions we have used:
-- `stack` version 3.7.1
-- `cabal` (`cabal-install`) version 3.14.2.0
 
 
 ## Directory Structure

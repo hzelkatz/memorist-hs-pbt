@@ -7,7 +7,7 @@ import Test.QuickCheck as QC
     ( quickCheck, Property, arbitrary, Gen, sized
     , NonEmptyList(getNonEmpty), InfiniteList (..)
     , chooseInt, vectorOf
-    , (.&&.), (==>), forAll, noShrinking )
+    , (.&&.), forAll, noShrinking )
 
 import Prelude hiding (mapM)
 
@@ -100,9 +100,6 @@ qc_appendInf = quickCheck $ \ (xs :: InfiniteList [Int]) (ys :: InfiniteList [In
         ys' = getInfiniteList ys
     in fromPure2 appendM xs' ys' `upperboundby` \_ d -> sizeD 1 d
 
--- appendM_test :: Cost
--- appendM_test = infcost (fromPure2 appendM ([1,2..]::[Int]) ([1,2..]::[Int])) minDemand
-
 
 -- take
 {-
@@ -143,7 +140,7 @@ takeM tn txs = do
                 pure (ConsT ty tzs)
     else pure NilT
 
--- Both bounds should hold:
+-- Both bounds should hold; the 2nd one is more precise. 
 
 qc_takeBound :: IO ()
 qc_takeBound = quickCheck (prop :: Int -> [Int] -> QC.Property)
@@ -301,11 +298,6 @@ repeatM tx = do
     txs <- lazy (repeatM tx)
     pure (ConsT tx txs)
 
--- repeatM_cost :: ReprDemandArb a => a -> Dem (Rep [a]) -> Cost
--- repeatM_cost = infcostFromPure1 repeatM'
---
--- repeatM_cost (42::Int) $ ConsD (Need 42) $ Need $ ConsD (Need 42) Skip
-
 prop_repeatCost :: ReprDemandArb a => a -> QC.Property
 prop_repeatCost x = fromPure1 repeatM x `exactly` \_ d -> sizeD 1 d
 
@@ -368,11 +360,6 @@ qcN_replicateBound' k = quickCheckN k $ \(n :: Int)(x :: Int) ->
 
 {-
     foldr :: (a -> b -> b) -> b -> [a] -> b
-    foldr k z = go
-          where
-            go []     = z
-            go (y:ys) = y `k` go ys
-    ---(ANF)--->
     foldr k z [] = z
     foldr k z (x:xs) = let acc = foldr k z xs in x `k` acc
 -}
@@ -439,11 +426,6 @@ concatLM txs = do
 cost_concatLM :: ReprDemand a => [[a]] -> (Rep [a] -> Dem (Rep [a])) -> Cost
 cost_concatLM xss = infcost (fromPure1 concatLM xss)
 
--- ttt1a = cost_concatM ([[0,0],[],[0,0],[0,0]]::[[Int]]) $ \_ -> ConsD (Need 0) (Need (ConsD Skip (Need (ConsD (Need 0) Skip))))
--- ttt1b = cost_concatLM ([[0,0],[],[0,0],[0,0]]::[[Int]]) $ \_ -> ConsD (Need 0) (Need (ConsD Skip (Need (ConsD (Need 0) Skip))))
--- ttt2a = cost_concatM ([[0,0,0,0],[0,0,0,0],[0],[0,0]]::[[Int]]) $ \_ -> ConsD (Need 0) (Need (ConsD (Need 0) (Need (ConsD (Need 0) (Need (ConsD (Need 0) Skip))))))
--- ttt2b = cost_concatLM ([[0,0,0,0],[0,0,0,0],[0],[0,0]]::[[Int]]) $ \_ -> ConsD (Need 0) (Need (ConsD (Need 0) (Need (ConsD (Need 0) (Need (ConsD (Need 0) Skip))))))
-
 -- This will likely be falsified: the fold version of concat is nonlinear.
 qcN_concatLMBoundWrong :: Int -> IO ()
 qcN_concatLMBoundWrong n = quickCheckN n $ \(xss :: [[Int]]) ->
@@ -457,20 +439,6 @@ qcN_concatLMBoundWrong' n = quickCheckN n $ \(xss :: [[Int]]) ->
 qcN_concatLMBound :: Int -> IO ()
 qcN_concatLMBound n = quickCheckN n $ \(xss :: [[Int]]) ->
     fromPure1 concatLM xss `upperboundby` \_ d -> (sizeD 1 d + 1) * (length xss + 1)
-
-{-
--- Testing with larger constants, eg. 2 * (length xss + length (concat xss)) + 8
-
-ghci> qcN_concatLMUBound 1000
-*** Failed! Falsified (after 12 tests and 19 shrinks):    
-[[0],[0,0,0],[],[],[]]
-ConsD (Need 0) (Need (ConsD (Need 0) (Need (ConsD (Need 0) (Need (ConsD (Need 0) (Need NilD)))))))
-
--- Here's a handpicked example that exhibits larger gap:
-
-let xss = ([[1..20],[2..16],[3..12],[4..8],[5]]::[[Int]]) in (cost_concatLM xss fullDemand, 2 * length xss + length (concat xss) + 2)
--- (162,63)
--}
 
 
 {-
@@ -524,9 +492,6 @@ succM tn = do
     n <- force tn
     return $ n + 1
 
--- mapSuccCost :: [Int] -> (Cost,Cost)
--- mapSuccCost xs = (infcost (fromPure1 mapSuccM1 xs) fullDemand, infcost (fromPure1 mapSuccM2 xs) fullDemand)
-
 {-
     concatMap :: (a -> [b]) -> [a] -> [b]
     concatMap f = foldr ((++) . f) []
@@ -567,6 +532,7 @@ cmsCost xs = (infcost (fromPure1 cmsM1 xs) fullDemand, infcost (fromPure1 cmsM2 
 
 {-
     NOTE on the two cms cost:
+    
     For cmsM1:
     concat over list of n singletons is ~3n when demanding in full:
         - foldr over n element lists,
@@ -617,14 +583,6 @@ filterM tf txs = do
 
 {-
     zipWith :: (a->b->c) -> [a]->[b]->[c]
-    zipWith f = go
-    where
-        go [] _ = []
-        go _ [] = []
-        go (x:xs) (y:ys) = f x y : go xs ys
-    
-    ------>
-    
     zipWith f [] _ = []
     zipWith f _ [] = []
     zipWith f (x:xs) (y:ys) = f x y : zipWith f xs ys

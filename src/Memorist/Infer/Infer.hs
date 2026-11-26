@@ -188,5 +188,6 @@ compCost comp c pc = fromIntegral (MT.toInteger c) `comp` pc
 
 -- -----------------------------------------------------------------------------
 
+-- | Combinator for functional correctness
 correct :: (Eq a, Repr a) => Memorist s m => m (Rep a) -> a -> Bool
 correct m x = abstract (value (eval m initstate)) == x

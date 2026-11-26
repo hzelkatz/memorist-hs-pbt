@@ -16,105 +16,101 @@ import Memorist.Example.Util
 
 import Test.QuickCheck as QC
 
--- Only for internal testing
-import Data.Tree
-import Control.Monad (replicateM_)
-
-data Batched a = Batched [a] [a]
+data BatchedL a = BatchedL [a] [a]
     deriving (Eq,Show)
 
-instance Queue Batched where
-    empty = Batched [] []
+instance Queue BatchedL where
+    empty = BatchedL [] []
 
-    enqueue (Batched f r) x = check $ Batched f $ (x : r)
+    enqueue (BatchedL f r) x = check $ BatchedL f $ (x : r)
 
-    dequeue (Batched [] _) = SMaybe Nothing
-    dequeue (Batched (x:f) r) =
-        SMaybe $ Just $ SPair (x, check (Batched f r))
+    dequeue (BatchedL [] _) = SMaybe Nothing
+    dequeue (BatchedL (x:f) r) =
+        SMaybe $ Just $ SPair (x, check (BatchedL f r))
 
-check :: Batched a -> Batched a
-check (Batched [] r) = Batched (reverse r) []
+check :: BatchedL a -> BatchedL a
+check (BatchedL [] r) = BatchedL (reverse r) []
 check q = q
 
-instance Arbitrary a => Arbitrary (Batched a) where
+instance Arbitrary a => Arbitrary (BatchedL a) where
     arbitrary = do
         f <- arbitrary
         case f of
             [] -> return $ Q.empty
-            _ -> return . Batched f =<< arbitrary
+            _ -> return . BatchedL f =<< arbitrary
 
     shrink =
         filter valid . shrinkMap wrap unwrap
-        where unwrap (Batched f r) = (f,r)
-              wrap (f,r) = Batched f r
-              valid (Batched [] (_:_)) = False
+        where unwrap (BatchedL f r) = (f,r)
+              wrap (f,r) = BatchedL f r
+              valid (BatchedL [] (_:_)) = False
               valid _                     = True
 
 
-data BatchedT a = BatchedT (Th (ListT a)) (Th (ListT a))
+data BatchedLT a = BatchedLT (Th (ListT a)) (Th (ListT a))
     deriving (Eq,Show)
 
-instance Repr a => Repr (Batched a) where
-    type Rep (Batched a) = BatchedT (Rep a)
-    reprM (Batched f r) = liftA2 BatchedT (lazy (reprM f)) (lazy (reprM r))
-    abstract (BatchedT f r) = Batched (abstract (tval f)) (abstract (tval r))
+instance Repr a => Repr (BatchedL a) where
+    type Rep (BatchedL a) = BatchedLT (Rep a)
+    reprM (BatchedL f r) = liftA2 BatchedLT (lazy (reprM f)) (lazy (reprM r))
+    abstract (BatchedLT f r) = BatchedL (abstract (tval f)) (abstract (tval r))
 
-instance QueueT BatchedT where
-    emptyM = liftA2 BatchedT tn tn where tn = lazy $ return NilT
+instance QueueT BatchedLT where
+    emptyM = liftA2 BatchedLT tn tn where tn = lazy $ return NilT
 
     enqueueM tq tx = do
         tick
-        ~(BatchedT tf tr) <- force tq
+        ~(BatchedLT tf tr) <- force tq
         tr' <- lazy $ return $ ConsT tx tr
-        checkM $ BatchedT tf tr'
+        checkM $ BatchedLT tf tr'
 
     dequeueM tq = do
         tick
-        ~(BatchedT tf tr) <- force tq
+        ~(BatchedLT tf tr) <- force tq
         f <- force tf
         case f of
             NilT -> return Nothing
             ConsT tx tf' -> do
-                q <- checkM $ BatchedT tf' tr
+                q <- checkM $ BatchedLT tf' tr
                 x <- force tx
                 return $ Just (x, q)
 
-checkM :: BatchedT a -> MemoristM (BatchedT a)
-checkM q@(BatchedT tf tr) = do
+checkM :: BatchedLT a -> MemoristM (BatchedLT a)
+checkM q@(BatchedLT tf tr) = do
     f <- force tf
     case f of
         NilT -> do
             tr' <- lazy $ reverseM tr
             tn <- lazy $ return NilT
-            return $ BatchedT tr' tn
+            return $ BatchedLT tr' tn
         _ -> return q
 
 -- -- Correctness:
--- qcN_batchedEnqCorrect n = quickCheckN n $ \(q :: Batched Int) (x :: Int) ->
+-- qcN_batchedEnqCorrect n = quickCheckN n $ \(q :: BatchedL Int) (x :: Int) ->
 --     correct (fromPure2 enqueueM q x) (enqueue q x)
--- qcN_batchedDeqCorrect n = quickCheckN n $ \(q :: Batched Int) ->
+-- qcN_batchedDeqCorrect n = quickCheckN n $ \(q :: BatchedL Int) ->
 --     correct (fromPure1 dequeueM q) (dequeue q)
 
-instance Demand a => Demand (BatchedT a) where
-    type Dem (BatchedT a) = (ThD (ListD (Dem a)), ThD (ListD (Dem a)))
-    fullDemand (BatchedT f r) = (fullDemand f, fullDemand r)
-    usage (BatchedT f r) (df, dr) = usage f df `union` usage r dr
+instance Demand a => Demand (BatchedLT a) where
+    type Dem (BatchedLT a) = (ThD (ListD (Dem a)), ThD (ListD (Dem a)))
+    fullDemand (BatchedLT f r) = (fullDemand f, fullDemand r)
+    usage (BatchedLT f r) (df, dr) = usage f df `union` usage r dr
 
-instance LBoundDemand a => LBoundDemand (BatchedT a) where
-    minDemand (BatchedT f r) = (minDemand f, minDemand r)
+instance LBoundDemand a => LBoundDemand (BatchedLT a) where
+    minDemand (BatchedLT f r) = (minDemand f, minDemand r)
 
-instance DemandArb a => DemandArb (BatchedT a) where
-    arbDemandFrom (BatchedT f r) = do
+instance DemandArb a => DemandArb (BatchedLT a) where
+    arbDemandFrom (BatchedLT f r) = do
         df <- arbDemandFrom f
         dr <- arbDemandFrom r
         return $ (df, dr)
 
 
-instance HasPotential (Batched)  where
-    potential (Batched _ r) = length r
+instance HasPotential (BatchedL)  where
+    potential (BatchedL _ r) = length r
 
-instance HasPotential (BatchedT) where
-    potential (BatchedT _ r) = sizeT 0 (tval r)
+instance HasPotential (BatchedLT) where
+    potential (BatchedLT _ r) = sizeT 0 (tval r)
 
 
 -- | Traditionally, amortized analysis considers credits.
@@ -126,7 +122,7 @@ instance HasPotential (BatchedT) where
 -- Equivalently, we want to assert that
 --      actual cost <= k - potential change
 -- for some constant k that is an upper bound on the amortized cost.
-prop_batchedlAmortized :: ReprDemandArb a => Batched a -> Op a -> Int -> Property
+prop_batchedlAmortized :: ReprDemandArb a => BatchedL a -> Op a -> Int -> Property
 prop_batchedlAmortized q op k =
     runOpFromPure q op `upperboundby` \v _ -> k - delta v
     where delta (Just q') = potential q' - potential q
@@ -159,7 +155,7 @@ qcN_batchedlDeqAmortized n = quickCheckN n $ \q -> prop_batchedlAmortized q (Deq
 -- unless there are indeed smaller examples and effective generators.
 prop_batchedlRunTraceCost :: (ReprDemandArb a, LBoundDemand (Rep a), Trace t) => t a -> Property
 prop_batchedlRunTraceCost t =
-    runTraceFromPure (Q.empty :: Batched a) t `upperboundWith` minDemand $ \_ _ -> 4 * traceSize t
+    runTraceFromPure (Q.empty :: BatchedL a) t `upperboundWith` minDemand $ \_ _ -> 4 * traceSize t
 
 -- This should hold: it is a nonbranching sequence of operators (i.e. no persistent usage).
 qcN_batchedlRunSeqCost :: Int -> IO ()
@@ -175,15 +171,3 @@ qcN_batchedlRunLSTraceCost n = quickCheckN n (prop_batchedlRunTraceCost :: LSTra
 -- effective at finding counterexamples.
 qcN_batchedlRunRanTraceCost :: Int -> IO ()
 qcN_batchedlRunRanTraceCost n = quickCheckN n (prop_batchedlRunTraceCost :: RanTrace Int -> Property)
-
--- -----------------------------------------------------------------------------
-
-batch_batched :: Int -> Int -> IO ()
-batch_batched k j = replicateM_ j $
-    putStrLn "qcN_batchedEnqAmortized" >> qcN_batchedlEnqAmortized k
-    >>
-    putStrLn "qcN_batchedDeqAmortized" >> qcN_batchedlDeqAmortized k
-    >>
-    putStrLn "qcN_batchedRunSeqCost" >> qcN_batchedlRunSeqCost k
-    -- >>
-    -- putStrLn "qcN_batchedRunLSTraceCost" >> qcN_batchedRunLSTraceCost k 

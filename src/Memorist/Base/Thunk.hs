@@ -103,6 +103,7 @@ fromSet = addSet azero
 
 --------------------------------------------------------------------------------
 
+-- | A representation of thunk with name and annotation
 data Th a = Th ThName a Annot
     deriving (Eq, Show)
 
