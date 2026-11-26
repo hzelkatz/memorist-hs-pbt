@@ -36,8 +36,6 @@ sqrtNR' eps n = sqrtNR (2**(logBase 2 n / 2)) eps n
 
 -- One typical cost model is the number of iterations.
 -- Hence we count in this function modelling the iterations, and only here.
--- NOTE: counting here versus counting number of invocations of repeatly
--- will give slightly different result (a constant difference of 2?).
 nextM :: Double -> Double -> MemoristM Double
 nextM n x = do
     tick    -- count # of iterations, or rather,
@@ -45,13 +43,6 @@ nextM n x = do
     z1 <- return $ n / x
     z2 <- return $ x + z1
     return $ z2 / 2
-
--- nextM tn tx = do
---     n <- force tn
---     x <- force tx
---     z1 <- return $ n / x
---     z2 <- return $ x + z1
---     return $ z2 / 2
 
 repeatlyM :: (Th a -> MemoristM a) -> Th a -> MemoristM (ListT a)
 repeatlyM fM ta = do
@@ -80,14 +71,6 @@ sqrtNRM ta0 teps tn = do
     n <- force tn
     fn <- return $ \tx -> nextM n =<< force tx
     withinM teps =<< lazy (repeatlyM fn ta0)
-
--- qcN_sqrtNRMCorrect :: Int -> IO ()
--- qcN_sqrtNRMCorrect n = quickCheckN n $ \(m::Positive Integer) ->
---     forAll (chooseInt (1,50)) $ \k ->
---     let x = fromInteger $ getPositive m :: Double in
---     let e = 10 ** fromIntegral (-k) :: Double in
---     let a0 = initial1 x :: Double in
---     fromPure3 sqrtNRM a0 e x `correct` sqrtNR a0 e x
 
 -- It is easy to translate, specify bounds and test it.
 -- The real issue is to find the specification itself.
@@ -122,15 +105,3 @@ initial1 x = x / 2
 
 initial2 :: Floating a => a -> a
 initial2 x = 2**(logBase 2 x / 2)
-
-
--- TODO: another version
-
-relative :: (Ord a, Fractional a) => a -> [a] -> a
-relative eps (a : (b : rest)) =
-    if abs (a/b - 1) <= eps then b
-    else relative eps (b : rest)
-
-relativesqrtNR :: (Ord a, Fractional a) => a -> a -> a -> a
-relativesqrtNR a0 eps n = relative eps (repeatly (next n) a0)
-

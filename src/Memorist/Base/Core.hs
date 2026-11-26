@@ -70,7 +70,6 @@ instance Monad m => MonadWriter Annot (AnnotT m) where
         xa <- runAnnotT m
         return $ pass xa
 
--- NOTE to self: requires FlexibleInstances and UndecidableInstances
 instance MonadState s m => MonadState s (AnnotT m) where
     get = AnnotT (pure <$> get)
 
@@ -93,19 +92,6 @@ instance MonadAnnot Annotated where
 instance Monad m => MonadAnnot (AnnotT m) where
     annotate x = hoistAnnot . annotate x
     wrapA = mapAnnotT (fmap wrapA)
-
-
--- class Monad m => MonadTick m where
---     tick :: m ()
-
--- instance MonadTick Annotated where
---     tick = Annotated () (fromCost onetick)
-
--- -- instance MonadTick m => MonadTick (StateT s m) where
--- --     tick = lift tick
-
--- instance Monad m => MonadTick (AnnotT m) where
---     tick = hoistAnnot tick
 
 
 -- | Class for states of the Memorist monad
@@ -153,7 +139,6 @@ instance Monad m => Applicative (MemoristBaseT s m) where
 instance Monad m => Monad (MemoristBaseT s m) where
     m >>= k = MemoristBaseT $ runMBT m >>= runMBT . k
 
--- NOTE to self: requires FlexibleInstances
 instance Monad m => MonadState s (MemoristBaseT s m) where
     get = MemoristBaseT get
     put = MemoristBaseT . put
@@ -162,9 +147,6 @@ instance Monad m => MonadWriter Annot (MemoristBaseT s m) where
     tell = MemoristBaseT . tell
     listen = MemoristBaseT . listen . runMBT
     pass = MemoristBaseT . pass . runMBT
-
--- instance Monad m => MonadTick (MemoristBaseT s m) where
---     tick = MemoristBaseT $ tick
 
 instance Monad m => MonadAnnot (MemoristBaseT s m) where
     annotate x = MemoristBaseT . annotate x

@@ -147,12 +147,6 @@ qcN_batchedlEnqAmortized n = quickCheckN n $ \q x -> prop_batchedlAmortized q (E
 qcN_batchedlDeqAmortized :: Int -> IO ()
 qcN_batchedlDeqAmortized n = quickCheckN n $ \q -> prop_batchedlAmortized q (Deq :: Op Int) 3
 
-
--- NOTE: using 5* instead rarely produces any counterexample, though there still are some.
--- One example is found after 20499 tests with a condition `traceSize t > 100`.
--- Using implication results in too many discarded tests; we might want a customized generator.
--- I doubt that using this method, we probably need very large trace,
--- unless there are indeed smaller examples and effective generators.
 prop_batchedlRunTraceCost :: (ReprDemandArb a, LBoundDemand (Rep a), Trace t) => t a -> Property
 prop_batchedlRunTraceCost t =
     runTraceFromPure (Q.empty :: BatchedL a) t `upperboundWith` minDemand $ \_ _ -> 4 * traceSize t

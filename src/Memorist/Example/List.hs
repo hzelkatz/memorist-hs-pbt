@@ -259,24 +259,6 @@ qcN_reverseNaiveLBound :: Int -> IO ()
 qcN_reverseNaiveLBound n = quickCheckN n $ \(xs :: [Int]) ->
     fromPure1 reverseNaiveM xs `lowerboundby` \_ _ -> length xs + 1
 
-{-
--- We can compare the cost incurred by the two versions of reverse
--- on the same input (and wrt the same demand on the value).
---
--- NOTE: while this property likely holds, we have to take into account that
--- the Naive version has additional overhead since reverse itself and append both
--- contribute to the final cost. This will inflates the cost of the naive reverse
--- but it is more than what we are actually interested.
--- A better comparison would be to *not* tick in the reverseNaiveM (ie counting
--- only ticks of append), in which case the one below likely still holds.
-prop_compareReverse :: ReprDemandArb a => [a] -> QC.Property
-prop_compareReverse xs = compareOnSame (fromPure1 reverseM xs) (fromPure1 reverseNaiveM xs) $
-    \cost1 cost2 -> cost1 <= cost2 + 2
-
-qcN_compareReverse :: Int -> IO ()
-qcN_compareReverse n = quickCheckN n (prop_compareReverse :: [Int] -> QC.Property)
--}
-
 --------------------------------------------------------------------------------
 
 -- Examples involving potentially non-terminating computations
@@ -459,39 +441,6 @@ mapMM tf txs = do
             tzs <- lazy $ mapMM tf tys
             return $ ConsT tz tzs
 
-
--- NOTE: fusion examples including the mapSucc one should all work even
--- after -O2 optimized compilation since the optimization does not
--- optimize through monadic definitions afaik.
--- This means we can actually use this framework to compare fused vs unfused directly,
--- although obviously the underlying program (the unfused version) will
--- be less efficient to actually execute.
-
--- A fusion example: mapSucc
---      map succ . mapp succ     vs    map (succ . succ)
--- The former need one more pass over the input list.
---
--- NOTE: no tests yet
-
-mapSuccM1 :: Th (ListT Int) -> MemoristM (ListT Int)
-mapSuccM1 txs = do
-    tick
-    tf <- lazy $ return succM
-    tzs <- lazy $ mapMM tf txs
-    mapMM tf tzs
-
-mapSuccM2 :: Th (ListT Int) -> MemoristM (ListT Int)
-mapSuccM2 txs = do
-    tick
-    tf <- lazy $ composeM succM succM
-    mapMM tf txs
-
-succM :: Th Int -> MemoristM Int
-succM tn = do
-    tick
-    n <- force tn
-    return $ n + 1
-
 {-
     concatMap :: (a -> [b]) -> [a] -> [b]
     concatMap f = foldr ((++) . f) []
@@ -529,23 +478,6 @@ cmsM2 txs = do
 
 cmsCost :: [Int] -> (Cost,Cost)
 cmsCost xs = (infcost (fromPure1 cmsM1 xs) fullDemand, infcost (fromPure1 cmsM2 xs) fullDemand)
-
-{-
-    NOTE on the two cms cost:
-    
-    For cmsM1:
-    concat over list of n singletons is ~3n when demanding in full:
-        - foldr over n element lists,
-        - append actually 2n, each elemment in the element list takes 1,
-            but each ([] ++ _) also takes 1, and there happens to
-            be n elements inside inner lists in total *and* n inner lists (thus n of []++_)
-    These above all get "truncated" proportionally if demanded less.
-    Additionally consider applying f (the singleton function) to each element.
-    So ~4n in total; with 1 constant cost to outermost concatMap.
-
-    For cmsM2:
-    Similar, but one additional pass. So ~5n in total.
--} 
 
 qcN_cmsM1Bound :: Int -> IO ()
 qcN_cmsM1Bound n = quickCheckN n $ \(xs :: [Int]) ->

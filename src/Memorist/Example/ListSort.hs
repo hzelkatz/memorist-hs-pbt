@@ -1,12 +1,9 @@
--- {-# OPTIONS_GHC -Wno-type-defaults #-}
-
 module Memorist.Example.ListSort where
 
 import Memorist.Memorist as M
 import Memorist.Data.List
 import Memorist.Example.Util
--- import Memorist.Example.List
-import Test.QuickCheck as QC ( Property, SortedList (..), noShrinking, arbitrary, forAll )
+import Test.QuickCheck as QC ( Property, SortedList (..), noShrinking )
 
 -- insertion sort
 
@@ -77,15 +74,6 @@ qcN_insertionSortBound :: Int -> IO ()
 qcN_insertionSortBound n = quickCheckN n $ \(xs::[Int]) ->
     fromPure1 insertionSortM xs `upperboundby` \_ d -> sizeD 0 d * length xs
 
-{-
--- Meanwhile in the best case, we expect that each element is compared against
--- only its immediate next element (except for the last one).
--- Thus we specify the following lower bound to test.
-qcN_insertionSortLBound :: Int -> IO ()
-qcN_insertionSortLBound n = quickCheckN n $ \(xs::[Int]) ->
-    fromPure1 insertionSortM xs `lowerboundby` \_ _ -> max 0 (length xs - 1)
--}
-
 -- In fact, for insertion sort, the best case should exactly be when the input
 -- list is already sorted. That is, when the input list is sorted, its cost should
 -- be in Θ(n), where n is length of the input.
@@ -111,71 +99,6 @@ qcN_insertionSortSortedCostWrong :: Int -> IO ()
 qcN_insertionSortSortedCostWrong n = quickCheckN n $ \(xs :: SortedList Int) ->
     let sorted = getSorted xs in
     fromPure1 insertionSortM sorted `upperboundby` \_ d -> sizeD 0 d
-
--- NOTE: it is also possible to test a similar statement on the worst case performance,
--- but we need to be careful if we want `exactly` instead of `upperboundby`.
--- We have to generate input list in which each element is strictly greater
--- than its next element---a slightly stronger property than being sorted in reverse order.
--- This is because, we can have an equal pair of elements in the revserely sorted list,
--- but this may not invoke more comparisons for the first element in the pair.
-
--- NOTE to self: the multiple `take n sorted` examples may use higher-order functions;
--- hof's are not used otherwise in insertion or merge sort per se.
-
--- TODO: multiple of `take n sorted`
-
-{-
--- Note that, internally the input is transformed into Memorist representation
--- types ('Rep a' of a type 'a'); and currently, 'Rep a' is not injective.
--- Thus a signature like
---      (ReprDemandArb a, Ord a) => a -> [a] -> Property
--- would not typecheck.
--- 
--- An alternative is to not use Ord class in the translations, but
--- pass in the comparator directly, that is:
-    
-    insertionSortM :: (a -> a -> Ordering) -> Th (ListT a) -> MemoristM (ListT a)
-    insertionSortM cmp txs = do
-        xs <- force txs
-        case xs of
-            NilT -> return NilT
-            ConsT tx txs' -> do
-                tys <- lazy $ insertionSortM cmp txs'
-                insertM cmp tx tys
-    
-    insertM :: (a -> a -> Ordering) -> Th a -> Th (ListT a) -> MemoristM (ListT a)
-    insertM cmp tx tys = do
-        ys <- force tys
-        case ys of
-            NilT -> do
-                tnil <- lazy $ return NilT
-                return $ ConsT tx tnil
-            ConsT ty tys' -> do
-                x <- force tx
-                y <- force ty
-                tick    -- tick here to count the comparisons made
-                case cmp y x of     -- x <= y equivalent to y > x
-                    GT -> return $ ConsT tx tys
-                    _ -> do
-                        tzs <- lazy $ insertM cmp tx tys'
-                        return $ ConsT ty tzs
-
--- although in practice it does not seem much difference so far because
--- the internal transformation so far means we almost always need to
--- manually provide the types of input when actually passing the property to
--- the quickCheck function.
---
--- Also, in order to supply the correct comparator, we often need to specialize
--- the input type anyway. For instance, we instantiate the type directly to Int
--- so we can use its 'compare' function directly. Memorist representation of Int
--- is Int itself, which saves many troubles in general.
--- 
---      quickCheckN n $ \(xs :: [Int]) ->
---          fromPure1 (insertionSortM compare) xs `upperboundby` \_ d -> ...
---
--- Another possible workaround (not tested yet) is to use the `~` operator on types
--- to allow asserting the `Rep a` type to belong to Ord class.
--}
 
 -- -----------------------------------------------------------------------------
 
@@ -224,14 +147,11 @@ mergeallM :: Ord a => Th (ListT (ListT a)) -> MemoristM (ListT a)
 mergeallM txss = do
     xss <- force txss
     case xss of
-        -- case []
         NilT -> pure NilT
         ConsT tys tyss -> do
             yss <- force tyss
             case yss of
-                -- case [_]
                 NilT -> force tys
-                -- case _
                 _ -> do
                     tzss <- lazy (mergepairsM txss)
                     mergeallM tzss
@@ -240,14 +160,11 @@ mergepairsM :: Ord a => Th (ListT (ListT a)) -> MemoristM (ListT (ListT a))
 mergepairsM txss = do
     xss <- force txss
     case xss of
-        -- case []
         NilT -> pure NilT
         ConsT tys tyss -> do
             yss <- force tyss
             case yss of
-                -- case [_]
                 NilT -> pure xss
-                -- case (_:_:_)
                 ConsT tys' tyss' -> do
                     tzs <- lazy (mergeM tys tys')
                     tzss <- lazy (mergepairsM tyss')
@@ -335,20 +252,9 @@ prop_mergesortUBound xs = fromPure1 mergesortM xs `upperboundby`
 qcN_mergesortUBound :: Int -> IO ()
 qcN_mergesortUBound n = quickCheckN n prop_mergesortUBound
 
--- NOTE: since the bound is not specified in terms of the demand,
--- we can alternatively always test against full demand on the resulting list.
--- But the test will be much slower to run, due to having to generate the demand
--- as well as collect and comupte cost agaist the full result list which takes
--- more time in general, and forcing the computation to be fully performed as well.
+-- If we want to consider demand...
 qcN_mergesortUBound' :: Int -> IO ()
 qcN_mergesortUBound' k = quickCheckN k $ \(xs :: [Int]) ->
-    let n = fromIntegral (length xs) :: Double in
-    fromPure1 mergesortM xs `upperboundWith` fullDemand $
-        \_ _ -> n * logBase 2 (max 1 n)
-
--- If we want to consider demand...
-qcN_mergesortUBound'' :: Int -> IO ()
-qcN_mergesortUBound'' k = quickCheckN k $ \(xs :: [Int]) ->
     let n = fromIntegral (length xs) :: Double in
     fromPure1 mergesortM xs `upperboundby`
         \_ d -> n * logBase 2 (max 1 (fromIntegral (sizeD 0 d + 1)))

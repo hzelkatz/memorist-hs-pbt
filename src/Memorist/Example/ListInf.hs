@@ -4,9 +4,7 @@ module Memorist.Example.ListInf where
 
 import Memorist.Memorist as M
 import Memorist.Data.List
--- import Memorist.Example.Util
 import Memorist.Example.List (takeM)
--- import Test.QuickCheck as QC ( NonNegative (..), (==>) )
 
 
 -- Simple infinite list examples

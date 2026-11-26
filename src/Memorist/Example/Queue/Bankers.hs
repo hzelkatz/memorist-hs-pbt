@@ -37,17 +37,6 @@ nrear (Bankers _ _ nr _) = nr
 instance Arbitrary a => Arbitrary (Bankers a) where
     arbitrary = genBankers arbitrary
 
-    {- -- We could've defined a shrinker but it doesn't seem to be helpful
-       -- in practice?
-
-        shrink (Bankers nf f _ r) =
-            [ Bankers 0 [] 0 [] ] ++
-            [ Bankers nf f 0 [] ] ++
-            filter valid [ Bankers (length f') f' (length r') r'
-                        | (f', r') <- shrink (f, r) ]
-            where valid (Bankers nf' _ nr' _) = nf' >= nr'
-    -}
-
 genBankers :: Gen a -> Gen (Bankers a)
 genBankers gen = sized $ \n -> do
     k1 <- chooseInt (0,n)
@@ -130,39 +119,6 @@ instance HasPotential Bankers where
 instance HasPotential BankersT where
     potential (BankersT nf _ nr _) = max 0 (nf - nr)
 
-
--- NOTE to self: using the interface that specify cost bounds based on pure values
--- causes some issues. If we generalize enough it doesn't typecheck because of
--- ambiguous types (possibly related to type family injectivity).
--- I think it might be becoz we essentially have (ReprDemand a, a1 ~ Rep a, a2 ~ Dem a1)
--- declared in the context, but during type inference, Haskell can only infer up
--- to this shape of chain (so sth like ReprDemand b, b1 ~ Rep b, b2 ~ Dem b1)
--- but cannot unify them with the a type, because the family is noninejctive
--- and there is no guarantee that if a2 = b2 then it must be a = b?
--- Because if we look at the version using `exactlyWith` which only works on `Demand a`,
--- Then its fine even with polymorphic types.
--- 
--- If we instantiate to concrete type with no args, it typechecks but only if we also
--- write out the instantiated type for exactlyWith'.
---
--- prop_bankersAmortized :: (Repr a, a1 ~ Rep a, Demand a1, a2 ~ Dem a1) => Bankers a -> Op a -> Int -> Bool
--- prop_bankersAmortized q op k =
---     -- exactlyWith'
---     -- (exactlyWith' :: MemoristM (Maybe (BankersT (Rep a))) -> (Maybe (BankersT (Rep a)) -> Maybe (ThD (ListD (Dem (Rep a))), ThD (ListD (Dem (Rep a))))) -> (SMaybe (Bankers a) -> Maybe (ThD (ListD (Dem (Rep a))), ThD (ListD (Dem (Rep a)))) -> Int) -> Bool)
---     (exactlyWith' :: MemoristM (Maybe (BankersT a1)) -> (Maybe (BankersT a1) -> Maybe (ThD (ListD a2), ThD (ListD a2))) -> (SMaybe (Bankers a) -> Maybe (ThD (ListD a2), ThD (ListD a2)) -> Int) -> Bool)
---         m fullDemand $ \v _ -> k -- + delta v
---     where m = runOpFromPure q op
---
--- prop_bankersAmortized :: Bankers Int -> Op Int -> Int -> Bool
--- prop_bankersAmortized q op k =
---     -- exactlyWith'
---     (exactlyWith' :: MemoristM (Maybe (BankersT Int)) -> (Maybe (BankersT Int) -> Maybe (ThD (ListD Int), ThD (ListD Int))) -> (SMaybe (Bankers Int) -> Maybe (ThD (ListD Int), ThD (ListD Int)) -> Int) -> Bool)
---         m fullDemand $ \v _ -> k -- + delta v
---     where m = runOpFromPure q op
-
--- Recall:
---    amortized cost = complete cost - potential change
-
 -- We test specifically with 'fullDemand', i.e., demanding every portion of the queue.
 -- Incidentally, the cost deriving using full demand correponds to what Okasaki
 -- called "complete cost" in his book, i.e. cost of an operation if every thunk
@@ -173,9 +129,6 @@ instance HasPotential BankersT where
 -- amortized cost + potential change, because in different case
 -- (e.g. rotation-triggering or not) the exact amortized cost for the operation
 -- can be slightly different.
--- 
--- NOTE: One slight issue with using fullDemand: it may be slower than using QuickCheck's
--- 'forAll' combinator on all possible demand generated based on resulting value.
 prop_bankersAmortized :: ReprDemand a => Bankers a -> Op a -> Int -> Property
 prop_bankersAmortized q op k =
     runOpFromPure q op `upperboundWith` fullDemand $ \v _ -> k + delta v
@@ -184,17 +137,10 @@ prop_bankersAmortized q op k =
 
 qcN_bankersEnqAmortized :: Int -> IO ()
 qcN_bankersEnqAmortized n = quickCheckN n $ \q x -> prop_bankersAmortized q (Enq x :: Op Int) 4
--- before [] [], pot = 0, then r=1, rot []++r' [] takes 1 for append + 3 for rev, pot = 1
--- cost = 1+1+3=5, delta=1, amort = 5-1=4
 
 qcN_bankersDeqAmortized :: Int -> IO ()
 qcN_bankersDeqAmortized n = quickCheckN n $ \q -> prop_bankersAmortized q (Deq :: Op Int) 4
--- before f = r, pot = 0, then f-1, rot f-1++r' [], takes f for append + r+2 for rev, pot = f-1+r
--- cost = 1+f+r+2=f+r+3, delta=f+r-1-0, amort=f+r+3-(f+r-1)=4
 
--- The property below is somewhat loose in that we do not fix the demand.
--- NOTE: this is generally faster than the fullDemand version
---  since the demand might sometimes be small
 prop_bankersAmortized' :: ReprDemandArb a => Bankers a -> Op a -> Int -> Property
 prop_bankersAmortized' q op k =
     runOpFromPure q op `upperboundby` \v _ -> k + delta v
@@ -223,18 +169,3 @@ prop_bankersRunTraceCost' q t =
 
 qcN_bankersRunTraceCost' :: Int -> IO ()
 qcN_bankersRunTraceCost' n = quickCheckN n (prop_bankersRunTraceCost' :: Bankers Int -> Trace1 Int -> Property)
-
--- -----------------------------------------------------------------------------
-
--- Additional tests:
-
--- Fixed to full demand. NOTE: just for experiment; this does not hold in general.
--- Asking for "full demand" actually violates the queue interface where elements
--- are only accessed via dequque operation.
-prop_bankersRunTraceCost1 :: ReprDemandArb a => Trace1 a -> Property
-prop_bankersRunTraceCost1 t =
-    runTraceFromPure (Q.empty :: Bankers a) t `upperboundWith` fullDemand $
-        \_ _ -> 4 * traceSize t
-
-qcN_bankersRunTraceCost1 :: Int -> IO ()
-qcN_bankersRunTraceCost1 n = quickCheckN n (prop_bankersRunTraceCost1 :: Trace1 Int -> Property)
